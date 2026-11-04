@@ -1,0 +1,105 @@
+<style>
+  .dirs { display:flex; flex-direction:column; gap:36px; margin-top:20px; }
+  .win { border-radius:12px; overflow:hidden; display:grid; grid-template-columns:200px 1fr; height:400px; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; font-size:12px; position:relative; }
+  .win .side { padding:38px 12px 12px; display:flex; flex-direction:column; gap:3px; }
+  .win .lights { position:absolute; top:13px; left:14px; display:flex; gap:8px; }
+  .win .lights i { width:12px; height:12px; border-radius:50%; display:block; }
+  .win .lights i:nth-child(1){background:#ff5f57}.win .lights i:nth-child(2){background:#febc2e}.win .lights i:nth-child(3){background:#28c840}
+  .win .grp { font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin:12px 8px 4px; font-weight:600; }
+  .win .it { padding:5px 8px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; }
+  .win .main { display:flex; flex-direction:column; min-width:0; }
+  .win .tabs { height:38px; display:flex; align-items:flex-end; gap:2px; padding:0 12px; }
+  .win .tab { padding:7px 14px; border-radius:7px 7px 0 0; font-size:11.5px; }
+  .win .ed { padding:16px 20px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; line-height:1.75; margin:0 12px; border-radius:10px; }
+  .win .ln { display:inline-block; width:22px; opacity:.35; }
+  .win .bar { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; font-size:11px; }
+  .win table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  .win th, .win td { text-align:left; padding:7px 16px; white-space:nowrap; }
+  .win td.n { font-family:ui-monospace,"SF Mono",monospace; text-align:right; }
+  .win .run { padding:5px 12px; border-radius:7px; font-weight:600; font-size:11px; color:#fff; background:linear-gradient(135deg,#8b6cff,#5b8cff); }
+  .win .res { margin:0 12px 12px; border-radius:10px; overflow:hidden; flex:1; }
+  .win .badge { font-size:10px; padding:1px 6px; border-radius:10px; }
+  .note { margin-top:10px; font-size:14px; line-height:1.5; }
+
+  /* Dark reference */
+  .dk { background:linear-gradient(135deg,#1b1530 0%,#0e1424 55%,#0b1b22 100%); color:#e6e4f0; box-shadow:0 30px 80px -20px rgba(80,60,180,.5),0 0 0 1px rgba(255,255,255,.08); }
+  .dk .side { background:rgba(255,255,255,.035); border-right:1px solid rgba(255,255,255,.06); }
+  .dk .grp { color:rgba(230,228,240,.4); }
+  .dk .it.on { background:linear-gradient(90deg,rgba(139,108,255,.28),rgba(139,108,255,.08)); box-shadow:inset 0 0 0 1px rgba(160,135,255,.25); }
+  .dk .badge { background:rgba(94,234,212,.15); color:#5eead4; }
+  .dk .tab { color:rgba(230,228,240,.5); } .dk .tab.on { background:rgba(255,255,255,.06); color:#fff; }
+  .dk .ed, .dk .res { background:rgba(255,255,255,.03); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
+  .dk .k{color:#b79cff}.dk .f{color:#5eead4}.dk .c{color:rgba(230,228,240,.35);font-style:italic}.dk .num{color:#f9a8d4}
+  .dk .bar { color:rgba(230,228,240,.55); } .dk .run { box-shadow:0 4px 14px rgba(120,100,255,.45); }
+  .dk th { color:rgba(230,228,240,.45); font-weight:500; border-bottom:1px solid rgba(255,255,255,.06); }
+
+  /* Light 1 — Aurora Dawn: pearly, tinted glass, gradient wash survives */
+  .dawn { background:linear-gradient(135deg,#f3eeff 0%,#eef3ff 50%,#e9f8f6 100%); color:#24203a; box-shadow:0 30px 70px -25px rgba(110,90,200,.35),0 0 0 1px rgba(90,70,170,.12); }
+  .dawn .side { background:rgba(255,255,255,.45); border-right:1px solid rgba(110,90,200,.10); }
+  .dawn .grp { color:rgba(60,50,110,.45); }
+  .dawn .it.on { background:linear-gradient(90deg,rgba(139,108,255,.18),rgba(139,108,255,.05)); box-shadow:inset 0 0 0 1px rgba(139,108,255,.25); }
+  .dawn .badge { background:rgba(13,148,136,.12); color:#0f8a7e; }
+  .dawn .tab { color:rgba(36,32,58,.45); } .dawn .tab.on { background:rgba(255,255,255,.7); color:#24203a; }
+  .dawn .ed, .dawn .res { background:rgba(255,255,255,.72); box-shadow:0 1px 2px rgba(80,60,160,.06),inset 0 0 0 1px rgba(110,90,200,.10); }
+  .dawn .k{color:#6d4ee8}.dawn .f{color:#0f8a7e}.dawn .c{color:#a29cbd;font-style:italic}.dawn .num{color:#c2408a}
+  .dawn .bar { color:rgba(36,32,58,.55); } .dawn .run { box-shadow:0 4px 12px rgba(120,100,255,.35); }
+  .dawn th { color:rgba(36,32,58,.45); font-weight:500; border-bottom:1px solid rgba(110,90,200,.10); }
+
+  /* Light 2 — Aurora Day: neutral crisp white, color only in accents */
+  .day { background:#f7f7f9; color:#1d1d22; box-shadow:0 30px 70px -25px rgba(0,0,0,.25),0 0 0 1px rgba(0,0,0,.08); }
+  .day .side { background:#efeff3; border-right:1px solid #e3e3e9; }
+  .day .grp { color:#8c8c99; }
+  .day .it.on { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08),inset 0 0 0 1px rgba(139,108,255,.3); }
+  .day .badge { background:#e6f6f3; color:#0f8a7e; }
+  .day .tab { color:#8c8c99; } .day .tab.on { background:#fff; color:#1d1d22; }
+  .day .ed, .day .res { background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.05),inset 0 0 0 1px #e6e6ec; }
+  .day .k{color:#6d4ee8}.day .f{color:#0f8a7e}.day .c{color:#a3a3ad;font-style:italic}.day .num{color:#c2408a}
+  .day .bar { color:#70707c; }
+  .day th { color:#8c8c99; font-weight:500; border-bottom:1px solid #ececf1; }
+</style>
+
+<h2>Aurora becomes the default. Which light theme belongs with it?</h2>
+<p class="subtitle">The dark default is shown first for reference. Both light options keep the same accent colors and layout, so switching themes still feels like the same app.</p>
+
+<template id="body">
+</template>
+
+<div class="dirs">
+  <div style="display:block">
+    <h3>Default — Aurora (dark)</h3>
+    <div class="win dk">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="side"><div class="grp">Tracks</div><div class="it on">🪐 Orbital Agency <span class="badge">7/12</span></div><div class="it">🎧 Vinyl Vault <span class="badge">3/10</span></div><div class="grp">Schema</div><div class="it">missions</div><div class="it">astronauts</div></div>
+      <div class="main"><div class="tabs"><div class="tab on">Challenge 8 · Busiest crews</div><div class="tab">Scratch</div></div>
+        <div class="ed"><span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br><span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br><span class="ln">3</span><span class="k">FROM</span> astronauts a <span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> …<br><span class="ln">4</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;</div>
+        <div class="bar"><span>✓ Correct! · 4 rows · 2.1 ms</span><span class="run">Run ⌘↵</span></div>
+        <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr><tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr></table></div></div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="dawn" onclick="toggleSelect(this)" style="display:block"><div class="content">
+    <h3>A — Aurora Dawn</h3>
+    <div class="win dawn">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="side"><div class="grp">Tracks</div><div class="it on">🪐 Orbital Agency <span class="badge">7/12</span></div><div class="it">🎧 Vinyl Vault <span class="badge">3/10</span></div><div class="grp">Schema</div><div class="it">missions</div><div class="it">astronauts</div></div>
+      <div class="main"><div class="tabs"><div class="tab on">Challenge 8 · Busiest crews</div><div class="tab">Scratch</div></div>
+        <div class="ed"><span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br><span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br><span class="ln">3</span><span class="k">FROM</span> astronauts a <span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> …<br><span class="ln">4</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;</div>
+        <div class="bar"><span>✓ Correct! · 4 rows · 2.1 ms</span><span class="run">Run ⌘↵</span></div>
+        <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr><tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr></table></div></div>
+    </div>
+    <p class="note"><b>Pearly and tinted.</b> The lavender-to-mint aurora glow carries over as a soft wash behind frosted white panels. This is the closest match to the dark theme's personality.</p>
+  </div></div>
+
+  <div class="option" data-choice="day" onclick="toggleSelect(this)" style="display:block"><div class="content">
+    <h3>B — Aurora Day</h3>
+    <div class="win day">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="side"><div class="grp">Tracks</div><div class="it on">🪐 Orbital Agency <span class="badge">7/12</span></div><div class="it">🎧 Vinyl Vault <span class="badge">3/10</span></div><div class="grp">Schema</div><div class="it">missions</div><div class="it">astronauts</div></div>
+      <div class="main"><div class="tabs"><div class="tab on">Challenge 8 · Busiest crews</div><div class="tab">Scratch</div></div>
+        <div class="ed"><span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br><span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br><span class="ln">3</span><span class="k">FROM</span> astronauts a <span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> …<br><span class="ln">4</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;</div>
+        <div class="bar"><span>✓ Correct! · 4 rows · 2.1 ms</span><span class="run">Run ⌘↵</span></div>
+        <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr><tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr></table></div></div>
+    </div>
+    <p class="note"><b>Crisp neutral white.</b> The background has no tint, and color appears only in the syntax, accents and Run button. Cleaner and more businesslike, like a sunny-day work mode.</p>
+  </div></div>
+</div>

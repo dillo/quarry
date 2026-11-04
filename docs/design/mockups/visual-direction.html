@@ -1,0 +1,166 @@
+<style>
+  .dirs { display:flex; flex-direction:column; gap:36px; margin-top:20px; }
+  .win { border-radius:12px; overflow:hidden; display:grid; grid-template-columns:200px 1fr; height:420px; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; font-size:12px; position:relative; }
+  .win .side { padding:38px 12px 12px; display:flex; flex-direction:column; gap:3px; }
+  .win .lights { position:absolute; top:13px; left:14px; display:flex; gap:8px; }
+  .win .lights i { width:12px; height:12px; border-radius:50%; display:block; }
+  .win .lights i:nth-child(1){background:#ff5f57}.win .lights i:nth-child(2){background:#febc2e}.win .lights i:nth-child(3){background:#28c840}
+  .win .grp { font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin:12px 8px 4px; font-weight:600; }
+  .win .it { padding:5px 8px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; }
+  .win .main { display:flex; flex-direction:column; min-width:0; }
+  .win .tabs { height:38px; display:flex; align-items:flex-end; gap:2px; padding:0 12px; }
+  .win .tab { padding:7px 14px; border-radius:7px 7px 0 0; font-size:11.5px; }
+  .win .ed { padding:16px 20px; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12.5px; line-height:1.75; flex:0 0 auto; }
+  .win .ln { display:inline-block; width:22px; opacity:.35; user-select:none; }
+  .win .bar { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; font-size:11px; }
+  .win table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  .win th, .win td { text-align:left; padding:7px 16px; white-space:nowrap; }
+  .win td.n { font-family:ui-monospace,"SF Mono",monospace; text-align:right; }
+  .win .run { padding:5px 12px; border-radius:7px; font-weight:600; font-size:11px; }
+  .note { margin-top:10px; font-size:14px; line-height:1.5; }
+
+  /* A — Aurora Glass */
+  .a { background:linear-gradient(135deg,#1b1530 0%,#0e1424 55%,#0b1b22 100%); color:#e6e4f0; box-shadow:0 30px 80px -20px rgba(80,60,180,.5), 0 0 0 1px rgba(255,255,255,.08); }
+  .a .side { background:rgba(255,255,255,.035); backdrop-filter:blur(20px); border-right:1px solid rgba(255,255,255,.06); }
+  .a .grp { color:rgba(230,228,240,.4); }
+  .a .it.on { background:linear-gradient(90deg,rgba(139,108,255,.28),rgba(139,108,255,.08)); box-shadow:inset 0 0 0 1px rgba(160,135,255,.25); }
+  .a .badge { font-size:10px; padding:1px 6px; border-radius:10px; background:rgba(94,234,212,.15); color:#5eead4; }
+  .a .tab { color:rgba(230,228,240,.5); } .a .tab.on { background:rgba(255,255,255,.06); color:#fff; }
+  .a .ed { background:rgba(255,255,255,.03); margin:0 12px; border-radius:10px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
+  .a .k{color:#b79cff}.a .f{color:#5eead4}.a .s{color:#fbbf77}.a .c{color:rgba(230,228,240,.35);font-style:italic}.a .num{color:#f9a8d4}
+  .a .bar { color:rgba(230,228,240,.55); }
+  .a .run { background:linear-gradient(135deg,#8b6cff,#5b8cff); color:#fff; box-shadow:0 4px 14px rgba(120,100,255,.45); }
+  .a .res { margin:0 12px 12px; border-radius:10px; overflow:hidden; background:rgba(255,255,255,.03); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); flex:1; }
+  .a th { color:rgba(230,228,240,.45); font-weight:500; border-bottom:1px solid rgba(255,255,255,.06); }
+  .a tr:nth-child(even) td { background:rgba(255,255,255,.02); }
+
+  /* B — Paper & Ink */
+  .b { background:#f6f1e7; color:#2b2620; box-shadow:0 30px 70px -25px rgba(90,60,20,.35), 0 0 0 1px rgba(60,40,10,.12); }
+  .b .side { background:#efe8da; border-right:1px solid #e2d8c4; }
+  .b .grp { color:#9a8b72; font-family:ui-serif,"New York",Georgia,serif; text-transform:none; letter-spacing:0; font-size:12px; font-style:italic; font-weight:400; }
+  .b .it.on { background:#fffaf0; box-shadow:0 1px 2px rgba(80,50,10,.12); }
+  .b .badge { font-size:10px; padding:1px 6px; border-radius:10px; background:#e8f0e3; color:#4d7a3a; }
+  .b .tab { color:#9a8b72; font-family:ui-serif,"New York",Georgia,serif; font-size:13px; } .b .tab.on { background:#fffcf6; color:#2b2620; box-shadow:0 -1px 0 #e2d8c4 inset; }
+  .b .ed { background:#fffcf6; }
+  .b .k{color:#b5452a;font-weight:600}.b .f{color:#2f6f8f}.b .s{color:#6b8e23}.b .c{color:#a99c86;font-style:italic}.b .num{color:#8a4fb0}
+  .b .bar { color:#8a7c64; border-top:1px solid #e9e0cf; border-bottom:1px solid #e9e0cf; background:#f9f4ea; }
+  .b .run { background:#2b2620; color:#f6f1e7; }
+  .b .res { background:#fffcf6; flex:1; }
+  .b th { color:#8a7c64; font-family:ui-serif,"New York",Georgia,serif; font-style:italic; font-weight:400; font-size:12.5px; border-bottom:1px solid #2b2620; }
+  .b td { border-bottom:1px solid #f0e8d8; }
+
+  /* C — Graphite Signal */
+  .c3 { background:#0c0d0f; color:#d7dae0; box-shadow:0 30px 70px -25px rgba(0,0,0,.8), 0 0 0 1px #1f2227; }
+  .c3 .side { background:#0f1013; border-right:1px solid #1c1e22; }
+  .c3 .grp { color:#555b66; font-family:ui-monospace,"SF Mono",monospace; font-size:9.5px; }
+  .c3 .it { font-size:11.5px; } .c3 .it.on { background:#16181c; box-shadow:inset 2px 0 0 #c6f432; }
+  .c3 .badge { font-size:10px; font-family:ui-monospace,monospace; color:#c6f432; }
+  .c3 .tab { color:#5d636e; font-family:ui-monospace,"SF Mono",monospace; font-size:11px; border-radius:0; } .c3 .tab.on { color:#fff; box-shadow:inset 0 -2px 0 #c6f432; }
+  .c3 .tabs { border-bottom:1px solid #1c1e22; }
+  .c3 .k{color:#c6f432}.c3 .f{color:#7dd3fc}.c3 .s{color:#fda4af}.c3 .c{color:#4b515c}.c3 .num{color:#fcd34d}
+  .c3 .bar { color:#5d636e; font-family:ui-monospace,monospace; border-top:1px solid #1c1e22; border-bottom:1px solid #1c1e22; }
+  .c3 .run { background:#c6f432; color:#0c0d0f; font-family:ui-monospace,monospace; border-radius:4px; }
+  .c3 .res { flex:1; }
+  .c3 th { color:#5d636e; font-family:ui-monospace,monospace; font-weight:400; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; border-bottom:1px solid #1c1e22; }
+  .c3 td { border-bottom:1px solid #141619; }
+</style>
+
+<h2>Which visual direction feels like the app you'd want to open every day?</h2>
+<p class="subtitle">Each mockup shows the same screen: a challenge track in the sidebar, the query editor and the results. Click the one you like best. Mixing is fine too, e.g. "A's colors with C's density."</p>
+
+<div class="dirs">
+
+  <div class="option" data-choice="aurora" onclick="toggleSelect(this)" style="display:block">
+    <div class="content">
+      <h3>A — Aurora Glass</h3>
+      <div class="win a">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="side">
+          <div class="grp">Tracks</div>
+          <div class="it on">🪐 Orbital Agency <span class="badge">7/12</span></div>
+          <div class="it">🎧 Vinyl Vault <span class="badge">3/10</span></div>
+          <div class="it">🚇 Metro Lines <span style="opacity:.4">—</span></div>
+          <div class="grp">Schema</div>
+          <div class="it">missions</div><div class="it">astronauts</div><div class="it">crew_assignments</div>
+        </div>
+        <div class="main">
+          <div class="tabs"><div class="tab on">Challenge 8 · Busiest crews</div><div class="tab">Scratch</div></div>
+          <div class="ed">
+<span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br>
+<span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br>
+<span class="ln">3</span><span class="k">FROM</span> astronauts a<br>
+<span class="ln">4</span><span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> ca.astronaut_id = a.id<br>
+<span class="ln">5</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;
+          </div>
+          <div class="bar"><span>✓ Correct! · 4 rows · 2.1 ms</span><span class="run">Run ⌘↵</span></div>
+          <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr>
+            <tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr><tr><td>Amara Okafor</td><td class="n">4</td></tr></table></div>
+        </div>
+      </div>
+      <p class="note"><b>A deep dark theme with frosted-glass panels and soft violet-to-teal light.</b> Moody and premium, like Arc or Raycast. Panels float with rounded corners, and the accent glows. Very screenshot-friendly. Dark-first, with a light variant.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="paper" onclick="toggleSelect(this)" style="display:block">
+    <div class="content">
+      <h3>B — Paper &amp; Ink</h3>
+      <div class="win b">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="side">
+          <div class="grp">Tracks</div>
+          <div class="it on">Orbital Agency <span class="badge">7 / 12</span></div>
+          <div class="it">Vinyl Vault <span class="badge">3 / 10</span></div>
+          <div class="it">Metro Lines <span style="opacity:.4">—</span></div>
+          <div class="grp">Schema</div>
+          <div class="it">missions</div><div class="it">astronauts</div><div class="it">crew_assignments</div>
+        </div>
+        <div class="main">
+          <div class="tabs"><div class="tab on">No. 8 — Busiest crews</div><div class="tab">Scratch</div></div>
+          <div class="ed">
+<span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br>
+<span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br>
+<span class="ln">3</span><span class="k">FROM</span> astronauts a<br>
+<span class="ln">4</span><span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> ca.astronaut_id = a.id<br>
+<span class="ln">5</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;
+          </div>
+          <div class="bar"><span>✓ Correct — 4 rows in 2.1 ms</span><span class="run">Run ⌘↵</span></div>
+          <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr>
+            <tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr><tr><td>Amara Okafor</td><td class="n">4</td></tr></table></div>
+        </div>
+      </div>
+      <p class="note"><b>A warm, editorial look: cream paper, ink-black code, serif accents.</b> Calm and focused, like a beautifully typeset workbook. It feels made for learning and stands out from every other dark DB tool. Light-first, with a "night ink" dark variant.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="graphite" onclick="toggleSelect(this)" style="display:block">
+    <div class="content">
+      <h3>C — Graphite Signal</h3>
+      <div class="win c3">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="side">
+          <div class="grp">// tracks</div>
+          <div class="it on">Orbital Agency <span class="badge">07/12</span></div>
+          <div class="it">Vinyl Vault <span class="badge" style="color:#5d636e">03/10</span></div>
+          <div class="it">Metro Lines <span class="badge" style="color:#33373e">--/--</span></div>
+          <div class="grp">// schema</div>
+          <div class="it">missions</div><div class="it">astronauts</div><div class="it">crew_assignments</div>
+        </div>
+        <div class="main">
+          <div class="tabs"><div class="tab on">08_busiest_crews.sql</div><div class="tab">scratch.sql</div></div>
+          <div class="ed">
+<span class="ln">1</span><span class="c">-- Which astronauts flew more than 3 missions?</span><br>
+<span class="ln">2</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br>
+<span class="ln">3</span><span class="k">FROM</span> astronauts a<br>
+<span class="ln">4</span><span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> ca.astronaut_id = a.id<br>
+<span class="ln">5</span><span class="k">GROUP BY</span> a.name <span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span>;
+          </div>
+          <div class="bar"><span><span style="color:#c6f432">● PASS</span> &nbsp;4 rows · 2.1ms</span><span class="run">RUN ⌘↵</span></div>
+          <div class="res"><table><tr><th>name</th><th style="text-align:right">flights</th></tr>
+            <tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr><tr><td>Amara Okafor</td><td class="n">4</td></tr></table></div>
+        </div>
+      </div>
+      <p class="note"><b>A near-black graphite theme with one electric-lime signal color and monospace everywhere.</b> Precise and dense, like Linear meets a terminal. It feels like a pro instrument with no ornament, so its beauty comes from restraint and perfect alignment.</p>
+    </div>
+  </div>
+
+</div>

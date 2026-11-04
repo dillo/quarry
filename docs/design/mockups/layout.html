@@ -1,0 +1,162 @@
+<style>
+  .shot { margin:22px 0 8px; }
+  .win { border-radius:12px; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; font-size:12px; position:relative;
+         background:linear-gradient(135deg,#1b1530 0%,#0e1424 55%,#0b1b22 100%); color:#e6e4f0;
+         box-shadow:0 30px 80px -20px rgba(80,60,180,.5),0 0 0 1px rgba(255,255,255,.08); }
+  .lights { position:absolute; top:13px; left:14px; display:flex; gap:8px; z-index:2; }
+  .lights i { width:12px; height:12px; border-radius:50%; display:block; }
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .glass { background:rgba(255,255,255,.035); }
+  .panel { background:rgba(255,255,255,.03); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); border-radius:10px; }
+  .muted { color:rgba(230,228,240,.45); }
+  .grp { font-size:10px; letter-spacing:.08em; text-transform:uppercase; margin:14px 8px 5px; font-weight:600; color:rgba(230,228,240,.4); }
+  .it { padding:5px 8px; border-radius:6px; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .it.on { background:linear-gradient(90deg,rgba(139,108,255,.28),rgba(139,108,255,.08)); box-shadow:inset 0 0 0 1px rgba(160,135,255,.25); }
+  .badge { font-size:10px; padding:1px 6px; border-radius:10px; background:rgba(94,234,212,.15); color:#5eead4; }
+  .mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+  .k{color:#b79cff}.f{color:#5eead4}.c{color:rgba(230,228,240,.35);font-style:italic}.num{color:#f9a8d4}.s{color:#fbbf77}
+  .ln { display:inline-block; width:22px; opacity:.3; }
+  .run { padding:5px 12px; border-radius:7px; font-weight:600; font-size:11px; color:#fff; background:linear-gradient(135deg,#8b6cff,#5b8cff); box-shadow:0 4px 14px rgba(120,100,255,.45); }
+  .ghost { padding:5px 10px; border-radius:7px; font-size:11px; background:rgba(255,255,255,.06); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th, td { text-align:left; padding:6px 14px; white-space:nowrap; }
+  th { color:rgba(230,228,240,.45); font-weight:500; border-bottom:1px solid rgba(255,255,255,.06); }
+  td.n { text-align:right; font-family:ui-monospace,"SF Mono",monospace; }
+  tr:nth-child(even) td { background:rgba(255,255,255,.02); }
+  .pin { display:inline-flex; width:18px; height:18px; border-radius:50%; background:#fbbf24; color:#1b1530; font-weight:700; font-size:11px; align-items:center; justify-content:center; box-shadow:0 0 0 3px rgba(251,191,36,.25); }
+  .pinwrap { position:absolute; z-index:5; }
+  .legend { display:grid; grid-template-columns:repeat(2,1fr); gap:10px 24px; margin-top:16px; font-size:13.5px; line-height:1.45; }
+  .legend div { display:flex; gap:10px; align-items:flex-start; }
+  .ring { width:16px; height:16px; border-radius:50%; background:conic-gradient(#5eead4 0 58%, rgba(255,255,255,.1) 58% 100%); -webkit-mask:radial-gradient(circle 5px,transparent 98%,#000 100%); mask:radial-gradient(circle 5px,transparent 98%,#000 100%); }
+</style>
+
+<h2>Section 3: Layout and interactions</h2>
+<p class="subtitle">Screen 1 is the main workspace, shown in challenge mode. Screen 2 is what you see after a wrong answer. Screen 3 is the Home screen. The yellow numbers match the notes under each screen.</p>
+
+<!-- ============ SCREEN 1 ============ -->
+<h3 class="shot">1 · Workspace — challenge mode</h3>
+<div class="win" style="display:grid;grid-template-columns:210px 1fr 250px;height:560px;">
+  <div class="lights"><i></i><i></i><i></i></div>
+
+  <!-- sidebar -->
+  <div class="glass" style="padding:40px 10px 10px;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;position:relative;">
+    <div class="pinwrap" style="top:44px;right:8px"><span class="pin">1</span></div>
+    <div class="panel" style="display:flex;padding:3px;gap:2px;font-size:11px;">
+      <div style="flex:1;text-align:center;padding:4px;border-radius:7px;background:rgba(139,108,255,.25)">Playground</div>
+      <div style="flex:1;text-align:center;padding:4px" class="muted">Connections</div>
+    </div>
+    <div class="grp">Tracks</div>
+    <div class="it on">🪐 Orbital Agency <span class="ring"></span></div>
+    <div class="it">🎧 Vinyl Vault <span class="ring" style="background:conic-gradient(#5eead4 0 30%,rgba(255,255,255,.1) 30% 100%)"></span></div>
+    <div class="it muted">🚇 Metro Lines <span class="ring" style="background:rgba(255,255,255,.1)"></span></div>
+    <div class="grp" style="position:relative">Schema <span class="pinwrap" style="right:-2px;top:-3px"><span class="pin">2</span></span></div>
+    <div class="it">▾ astronauts <span class="muted mono" style="font-size:10px">42</span></div>
+    <div style="padding-left:20px;font-size:11px;line-height:1.9" class="mono muted">id <span style="opacity:.6">int pk</span><br>name <span style="opacity:.6">text</span><br>nationality <span style="opacity:.6">text</span></div>
+    <div class="it">▸ missions <span class="muted mono" style="font-size:10px">118</span></div>
+    <div class="it">▸ crew_assignments <span class="muted mono" style="font-size:10px">530</span></div>
+    <div class="grp">History</div>
+    <div class="it muted mono" style="font-size:10.5px">SELECT a.name, count(*…</div>
+    <div class="it muted mono" style="font-size:10.5px">SELECT * FROM missi…</div>
+  </div>
+
+  <!-- center -->
+  <div style="display:flex;flex-direction:column;min-width:0;position:relative">
+    <div style="height:40px;display:flex;align-items:flex-end;gap:2px;padding:0 12px;position:relative">
+      <div style="padding:7px 14px;border-radius:7px 7px 0 0;background:rgba(255,255,255,.06)">🪐 8 · Busiest crews</div>
+      <div style="padding:7px 14px" class="muted">Scratch</div>
+      <div style="padding:7px 10px" class="muted">＋</div>
+      <div class="pinwrap" style="right:14px;top:12px"><span class="pin">3</span></div>
+    </div>
+    <div class="panel mono" style="margin:0 12px;padding:14px 18px;font-size:12.5px;line-height:1.75;position:relative">
+<span class="ln">1</span><span class="k">SELECT</span> a.name, <span class="f">count</span>(*) <span class="k">AS</span> flights<br>
+<span class="ln">2</span><span class="k">FROM</span> astronauts a<br>
+<span class="ln">3</span><span class="k">JOIN</span> crew_assignments ca <span class="k">ON</span> ca.astronaut_id = a.id<br>
+<span class="ln">4</span><span class="k">GROUP BY</span> a.name<br>
+<span class="ln">5</span><span class="k">HAVING</span> <span class="f">count</span>(*) &gt; <span class="num">3</span><br>
+<span class="ln">6</span><span class="k">ORDER BY</span> flights <span class="k">DESC</span>;<span style="display:inline-block;width:2px;height:14px;background:#b79cff;vertical-align:middle;margin-left:1px"></span>
+    </div>
+    <div style="height:10px;display:flex;align-items:center;justify-content:center"><div style="width:36px;height:3px;border-radius:2px;background:rgba(255,255,255,.15)"></div></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 14px 8px;font-size:11px;position:relative">
+      <div style="display:flex;gap:14px"><span>Results</span><span class="muted">Messages</span><span class="muted">Plan</span></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="ghost">Check answer ⌘⇧↵</span><span class="run">Run ⌘↵</span></div>
+      <div class="pinwrap" style="left:180px;top:-4px"><span class="pin">4</span></div>
+    </div>
+    <div class="panel" style="margin:0 12px;flex:1;overflow:hidden;position:relative">
+      <table><tr><th>name</th><th style="text-align:right">flights</th></tr>
+      <tr><td>Valentina Orlova</td><td class="n">6</td></tr><tr><td>Kenji Arakawa</td><td class="n">5</td></tr><tr><td>Amara Okafor</td><td class="n">4</td></tr><tr><td>Lucas Ferreira</td><td class="n">4</td></tr></table>
+      <div class="pinwrap" style="right:10px;top:8px"><span class="pin">5</span></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:8px 16px;font-size:11px;position:relative" class="muted">
+      <span><span style="color:#5eead4">●</span> Playground · orbital.db</span>
+      <span>4 rows · 2.1 ms · Ln 6, Col 26</span>
+      <div class="pinwrap" style="left:46%;top:4px"><span class="pin">6</span></div>
+    </div>
+  </div>
+
+  <!-- right brief -->
+  <div style="border-left:1px solid rgba(255,255,255,.06);padding:44px 16px 16px;display:flex;flex-direction:column;gap:12px;position:relative" class="glass">
+    <div class="pinwrap" style="right:12px;top:14px"><span class="pin">7</span></div>
+    <div class="muted" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600">Challenge 8 of 12 · Aggregates</div>
+    <div style="font-size:17px;font-weight:600;line-height:1.3">Busiest crews</div>
+    <div style="font-size:12.5px;line-height:1.6;color:rgba(230,228,240,.8)">Mission Control is planning the Artemis rotation. They want every astronaut who has flown <b>more than three</b> missions, busiest first.</div>
+    <div class="panel" style="padding:10px 12px;font-size:11.5px;line-height:1.7">
+      <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:4px">Expected shape</div>
+      <span class="mono">name</span> · <span class="mono">flights</span><br><span class="muted">Order matters · 4 rows</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="badge" style="background:rgba(183,156,255,.15);color:#b79cff">GROUP BY</span>
+      <span class="badge" style="background:rgba(183,156,255,.15);color:#b79cff">HAVING</span>
+      <span class="badge" style="background:rgba(183,156,255,.15);color:#b79cff">JOIN</span>
+    </div>
+    <div style="margin-top:auto;display:flex;justify-content:space-between" class="muted"><span>‹ Prev</span><span>Attempts: 2</span><span>Next ›</span></div>
+  </div>
+</div>
+<div class="legend">
+  <div><span class="pin">1</span><span><b>Sidebar mode switch.</b> <i>Playground</i> shows the built-in tracks and the schema of the track's sandbox database. <i>Connections</i> shows your saved Postgres and MySQL servers. ⌘\ collapses the sidebar.</span></div>
+  <div><span class="pin">2</span><span><b>Schema tree.</b> Tables with row counts and columns with their types. Clicking a table opens it in a read-only browse tab. Drag a name into the editor to insert it as text. This is a manual action, not autocomplete.</span></div>
+  <div><span class="pin">3</span><span><b>Tabs.</b> Each challenge tab keeps its own draft, and drafts survive app restarts. "Scratch" tabs are freeform. ⌘T opens a new tab, ⌘W closes one.</span></div>
+  <div><span class="pin">4</span><span><b>Two actions.</b> <i>Run</i> (⌘↵) runs your SQL. <i>Check answer</i> (⌘⇧↵) runs it and grades it. Running the selection runs only the highlighted SQL.</span></div>
+  <div><span class="pin">5</span><span><b>Results grid.</b> Draws only visible rows, and columns can be resized. NULLs show as dim italic. Copy as TSV, CSV or JSON. The <i>Plan</i> tab shows <span class="mono">EXPLAIN QUERY PLAN</span>.</span></div>
+  <div><span class="pin">6</span><span><b>Status bar.</b> Which database you're connected to, row count, how long the query took, and cursor position. While a query runs, it shows a live timer and a cancel button (⌘.).</span></div>
+  <div><span class="pin">7</span><span><b>Challenge brief.</b> The story prompt, the expected column names and row count, whether order matters, and concept tags. No hints that write SQL for you. ⌘⌥I toggles the panel. In Connections mode this space becomes a row inspector.</span></div>
+  <div><span class="pin">⌘K</span><span><b>Command palette.</b> Jump to any track, challenge, table, tab, connection or setting by name. It's for navigating only and never suggests SQL.</span></div>
+</div>
+
+<!-- ============ SCREEN 2 ============ -->
+<h3 class="shot" style="margin-top:44px">2 · Checking an answer: wrong, then right</h3>
+<div class="split" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div class="win" style="padding:16px;height:230px">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span style="width:26px;height:26px;border-radius:50%;background:rgba(251,146,60,.18);color:#fb923c;display:flex;align-items:center;justify-content:center;font-weight:700">!</span><div><div style="font-weight:600;font-size:13px">Not quite yet</div><div class="muted" style="font-size:11.5px">Here's what's different. Your query is unchanged.</div></div></div>
+    <div class="panel" style="padding:10px 12px;font-size:12px;line-height:1.9">
+      <div>✓ Columns match <span class="mono muted">name, flights</span></div>
+      <div style="color:#fb923c">✗ Row count: expected <b>4</b>, got <b>7</b></div>
+      <div class="muted">– Order not checked until the row set matches</div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px"><span class="ghost">Show row diff</span><span class="ghost muted">Reveal expected result</span></div>
+  </div>
+  <div class="win" style="padding:16px;height:230px;background:radial-gradient(120% 90% at 20% 0%,rgba(94,234,212,.22),transparent 60%),linear-gradient(135deg,#1b1530,#0e1424 55%,#0b1b22)">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span style="width:26px;height:26px;border-radius:50%;background:rgba(94,234,212,.2);color:#5eead4;display:flex;align-items:center;justify-content:center;font-weight:700">✓</span><div><div style="font-weight:600;font-size:13px">Busiest crews: solved</div><div class="muted" style="font-size:11.5px">Third attempt · 2.1 ms</div></div></div>
+    <div style="display:flex;gap:4px;margin:8px 0 14px">
+      <span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:#5eead4;box-shadow:0 0 10px #5eead4"></span><span style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1)"></span><span style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1)"></span><span style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1)"></span><span style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.1)"></span>
+    </div>
+    <div style="font-size:12px;line-height:1.6;color:rgba(230,228,240,.8)">8 of 12 solved in Orbital Agency. Next up: <b>CTEs: Mission timelines</b>.</div>
+    <div style="margin-top:14px;display:flex;gap:8px"><span class="run">Next challenge →</span><span class="ghost">Stay here</span></div>
+  </div>
+</div>
+<p class="note" style="font-size:13.5px;line-height:1.5;margin-top:10px"><b>Feedback tells you what's wrong, never how to fix it.</b> Checks run in order: columns, then row count, then which rows, then row order. The row diff and the full expected result are opt-in, so you can't spoil an answer by accident. A correct answer sets off a short aurora pulse: about 600 ms of teal light across the window, with the progress segment glowing. Satisfying but brief, and it respects the macOS Reduce Motion setting.</p>
+
+<!-- ============ SCREEN 3 ============ -->
+<h3 class="shot" style="margin-top:44px">3 · Home: what you see on launch</h3>
+<div class="win" style="height:330px;padding:48px 36px 28px">
+  <div class="lights"><i></i><i></i><i></i></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px">
+    <div><div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Good evening.</div><div class="muted" style="font-size:13px;margin-top:4px">You're 4 challenges away from finishing Orbital Agency. Streak: 🔥 5 days</div></div>
+    <div style="display:flex;gap:8px"><span class="ghost">⌘K Search</span><span class="ghost">＋ New connection</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+    <div class="panel" style="padding:16px;background:linear-gradient(160deg,rgba(139,108,255,.2),rgba(255,255,255,.03))"><div style="font-size:26px">🪐</div><div style="font-weight:600;margin-top:8px;font-size:14px">Orbital Agency</div><div class="muted" style="font-size:11.5px;margin:4px 0 12px">Joins · Aggregates · CTEs · Windows</div><div style="height:5px;border-radius:3px;background:rgba(255,255,255,.08)"><div style="width:66%;height:100%;border-radius:3px;background:linear-gradient(90deg,#8b6cff,#5eead4)"></div></div><div style="margin-top:12px"><span class="run">Continue · 9</span></div></div>
+    <div class="panel" style="padding:16px"><div style="font-size:26px">🎧</div><div style="font-weight:600;margin-top:8px;font-size:14px">Vinyl Vault</div><div class="muted" style="font-size:11.5px;margin:4px 0 12px">Filtering · Grouping · Subqueries</div><div style="height:5px;border-radius:3px;background:rgba(255,255,255,.08)"><div style="width:30%;height:100%;border-radius:3px;background:linear-gradient(90deg,#8b6cff,#5eead4)"></div></div><div style="margin-top:12px"><span class="ghost">Continue · 4</span></div></div>
+    <div class="panel" style="padding:16px"><div style="font-size:26px">🔌</div><div style="font-weight:600;margin-top:8px;font-size:14px">Connections</div><div class="muted" style="font-size:11.5px;margin:4px 0 8px">Recent</div><div style="font-size:12px;line-height:1.9"><span style="color:#5eead4">●</span> prod-replica <span class="muted">· postgres</span><br><span class="muted">●</span> local-shop <span class="muted">· mysql</span></div></div>
+  </div>
+</div>
+<p class="note" style="font-size:13.5px;line-height:1.5;margin-top:10px"><b>Opening the app should feel like coming back to something.</b> A personal greeting, how far you are from finishing a track, and a streak that counts days with at least one solved challenge. The work side is one click away. The app opens in about 200 ms, faster than Electron apps like Beekeeper can, and that speed is part of the appeal.</p>

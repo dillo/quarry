@@ -1,0 +1,79 @@
+<style>
+  .row4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:20px; }
+  .pane { border-radius:12px; padding:16px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; font-size:12px; color:#e6e4f0; min-height:330px; display:flex; flex-direction:column; gap:10px;
+          background:linear-gradient(160deg,#1b1530 0%,#0e1424 60%,#0b1b22 100%); box-shadow:0 20px 50px -20px rgba(80,60,180,.5),0 0 0 1px rgba(255,255,255,.08); }
+  .muted { color:rgba(230,228,240,.45); }
+  .cap { font-size:10px; letter-spacing:.08em; text-transform:uppercase; font-weight:600; color:rgba(230,228,240,.4); }
+  .panel { background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); border-radius:10px; padding:10px 12px; line-height:1.6; }
+  .mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11.5px; }
+  .k{color:#b79cff}.f{color:#5eead4}.num{color:#f9a8d4}
+  .blank { display:inline-block; min-width:44px; border-bottom:1.5px dashed rgba(251,191,36,.7); color:transparent; }
+  .dots { display:flex; gap:5px; }
+  .dots i { width:22px; height:5px; border-radius:3px; background:rgba(255,255,255,.1); display:block; }
+  .dots i.on { background:#fbbf24; box-shadow:0 0 8px rgba(251,191,36,.6); }
+  .btn { padding:6px 10px; border-radius:7px; font-size:11px; text-align:center; background:rgba(255,255,255,.06); box-shadow:inset 0 0 0 1px rgba(255,255,255,.09); }
+  .btn.amber { background:rgba(251,191,36,.14); color:#fbbf24; box-shadow:inset 0 0 0 1px rgba(251,191,36,.3); }
+  .lock { opacity:.45; }
+  .step { font-size:13px; font-weight:600; margin-top:14px; }
+  .note { font-size:13.5px; line-height:1.55; margin-top:6px; }
+</style>
+
+<h2>Progressive hints: earned, not handed out</h2>
+<p class="subtitle">Hints live in the challenge brief panel. They unlock one at a time as wrong attempts pile up, and each tier gives away a little more. They never autocomplete or edit your SQL. You read them and type the query yourself.</p>
+
+<div class="row4">
+  <div>
+    <div class="step">Attempt 1: hints locked</div>
+    <div class="pane">
+      <div class="cap">Hints</div>
+      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="panel lock">🔒 The first hint unlocks after <b>one more</b> wrong attempt.</div>
+      <div class="muted" style="font-size:11.5px;line-height:1.55">Locking at first means you always try on your own before seeing any help.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="step">Tier 1: a nudge toward the concept</div>
+    <div class="pane">
+      <div class="cap">Hint 1 of 3</div>
+      <div class="dots"><i class="on"></i><i></i><i></i></div>
+      <div class="panel">💡 You need to filter on a count, and a count only exists <i>after</i> the rows are grouped.</div>
+      <div class="panel lock" style="font-size:11.5px">🔒 Hint 2 unlocks after 1 more attempt</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="step">Tier 2: names the tool</div>
+    <div class="pane">
+      <div class="cap">Hint 2 of 3</div>
+      <div class="dots"><i class="on"></i><i class="on"></i><i></i></div>
+      <div class="panel muted" style="font-size:11.5px">💡 You need to filter on a count…</div>
+      <div class="panel">🧭 <span class="mono k">WHERE</span> filters individual rows before grouping. <span class="mono k">HAVING</span> filters whole groups after grouping.</div>
+      <div class="panel lock" style="font-size:11.5px">🔒 Hint 3 unlocks after 1 more attempt</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="step">Tier 3: a skeleton with blanks</div>
+    <div class="pane">
+      <div class="cap">Hint 3 of 3</div>
+      <div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+      <div class="panel mono" style="line-height:1.8">
+        <span class="k">SELECT</span> <span class="blank">x</span>, <span class="f">count</span>(*)<br>
+        <span class="k">FROM</span> astronauts a<br>
+        <span class="k">JOIN</span> <span class="blank">x</span> <span class="k">ON</span> <span class="blank">x</span><br>
+        <span class="k">GROUP BY</span> <span class="blank">x</span><br>
+        <span class="k">HAVING</span> <span class="blank">xxxxx</span><br>
+        <span class="k">ORDER BY</span> <span class="blank">x</span>
+      </div>
+      <div class="muted" style="font-size:11px">Read-only. You type it yourself; it can't be pasted into the editor.</div>
+      <div class="btn amber" style="margin-top:auto">Reveal solution…</div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:22px"><b>Unlock rhythm.</b> Hint 1 unlocks after 2 wrong checks, then one more hint per additional wrong check. "Reveal solution" appears only after all three hints are open, and it asks you to confirm first. Settings has a <b>Hints</b> option: <i>Progressive</i> (default), <i>Always available</i> or <i>Off</i>, for people who want pure challenge mode.</p>
+
+<p class="note"><b>Honest progress, without punishment.</b> A challenge solved after using hints still counts as solved and still keeps your streak going. On its progress segment, a small amber dot marks hints used and an outlined segment marks a revealed solution. The track card offers <i>"Re-solve 3 assisted challenges clean"</i>, which gives you a reason to come back.</p>
+
+<p class="note"><b>Extension point.</b> Hints are written per challenge in <span class="mono">challenges.toml</span>: one to three tiers, plus an optional skeleton. When each hint unlocks is decided by a <span class="mono">HintPolicy</span> trait (by attempts, by time spent, or always available), so the unlock rule can change without touching the challenge content or the UI.</p>
