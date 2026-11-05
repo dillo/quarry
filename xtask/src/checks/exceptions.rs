@@ -55,6 +55,8 @@ pub fn parse_registry(source: &str, origin: &str) -> Result<Vec<Exception>, Xtas
 }
 
 /// Finds lint suppression attributes in Rust source.
+///
+/// Matches text anywhere in a file, including comments and strings, so it can over-report but never under-report.
 pub struct Scanner {
     pattern: Regex,
 }
@@ -66,7 +68,7 @@ impl Scanner {
     /// Returns an error only if the built-in pattern is invalid.
     pub fn new() -> Result<Self, XtaskError> {
         let pattern =
-            Regex::new(r"(?:#!?\[\s*|cfg_attr\([^)]*,\s*)(?:allow|expect)\s*\(([^)]*)\)")?;
+            Regex::new(r"(?:#!?\[\s*|cfg_attr\([^\]]*?,\s*)(?:allow|expect)\s*\(([^)]*)\)")?;
         Ok(Self { pattern })
     }
 
@@ -180,6 +182,18 @@ mod tests {
     fn finds_attributes_inside_cfg_attr() -> TestResult {
         let source = format!("#[cfg_attr(test, {}(clippy::a, clippy::b))]", "allow");
         assert_eq!(Scanner::new()?.find("f.rs", &source).len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn finds_attributes_inside_cfg_attr_with_nested_conditions() -> TestResult {
+        let source = format!(
+            "#[cfg_attr(not(test), {}(dead_code))]\n#[cfg_attr(all(unix, not(test)), {}(clippy::x))]",
+            "allow", "allow"
+        );
+        let found = Scanner::new()?.find("f.rs", &source);
+        let lints: Vec<_> = found.iter().map(|s| s.lint.as_str()).collect();
+        assert_eq!(lints, ["dead_code", "clippy::x"]);
         Ok(())
     }
 
