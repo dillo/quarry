@@ -59,6 +59,8 @@ fn repository_thresholds_match_the_design_spec() -> Result<(), TestError> {
         let target = thresholds.coverage[ui];
         assert_eq!((target.lines, target.regions), (80.0, 70.0), "{ui}");
     }
+    let xtask = thresholds.coverage["xtask"];
+    assert_eq!((xtask.lines, xtask.regions), (90.0, 85.0));
     assert_eq!(thresholds.mutation, MutationTarget { min_score: 90.0 });
     Ok(())
 }
