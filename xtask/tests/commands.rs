@@ -76,9 +76,23 @@ fn names_gate() -> Result<(), TestError> {
 fn manifests_gate() -> Result<(), TestError> {
     let dir = fixture()?;
     assert_eq!(count(&Command::CheckManifests, dir.path())?, 0);
-    let opted_out = ENGINE_MANIFEST.replace("workspace = true", "workspace = false");
+    let opted_out = ENGINE_MANIFEST.replace("\n[lints]\nworkspace = true\n", "");
     write(dir.path(), "crates/engine/Cargo.toml", &opted_out)?;
     assert_eq!(count(&Command::CheckManifests, dir.path())?, 1);
+    Ok(())
+}
+
+#[test]
+fn manifests_gate_flags_members_outside_the_scanned_roots() -> Result<(), TestError> {
+    let dir = fixture()?;
+    let root = ROOT_MANIFEST.replace("\"crates/*\"", "\"crates/*\", \"tools/foo\"");
+    write(dir.path(), "Cargo.toml", &root)?;
+    let tool = ENGINE_MANIFEST.replace("quarry-engine", "quarry-foo");
+    write(dir.path(), "tools/foo/Cargo.toml", &tool)?;
+    write(dir.path(), "tools/foo/src/lib.rs", "//! Foo.\n")?;
+    let found = commands::run(&Command::CheckManifests, dir.path())?;
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].location, "tools/foo/Cargo.toml");
     Ok(())
 }
 

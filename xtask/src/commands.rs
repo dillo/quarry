@@ -35,12 +35,26 @@ fn manifests(root: &Path) -> Result<Vec<Violation>, XtaskError> {
     for path in files::member_manifests(root)? {
         found.push((files::display(&path), files::read(&root.join(&path))?));
     }
-    Ok(checks::manifests::check(&found))
+    let mut violations = checks::manifests::check(&found);
+    let root_text = files::display(&root.canonicalize().map_err(|source| XtaskError::Io {
+        path: files::display(root),
+        source,
+    })?);
+    violations.extend(checks::manifests::check_members(
+        &metadata(root)?,
+        &root_text,
+        &files::SOURCE_ROOTS,
+    )?);
+    Ok(violations)
+}
+
+fn metadata(root: &Path) -> Result<String, XtaskError> {
+    let args = ["metadata", "--format-version", "1", "--no-deps"];
+    process::run_capture("cargo", &args, root)
 }
 
 fn deps(root: &Path) -> Result<Vec<Violation>, XtaskError> {
-    let args = ["metadata", "--format-version", "1", "--no-deps"];
-    checks::deps::check_metadata(&process::run_capture("cargo", &args, root)?)
+    checks::deps::check_metadata(&metadata(root)?)
 }
 
 fn exceptions(root: &Path) -> Result<Vec<Violation>, XtaskError> {
