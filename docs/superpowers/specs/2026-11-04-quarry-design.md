@@ -249,13 +249,19 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 
 1. Dependencies flow one way (§3.2), and CI enforces it.
 2. Logic lives in library crates. GPUI views stay thin: they render state and send actions.
-3. Deep modules: a narrow, documented public API that hides internals.
-4. Errors are values: `thiserror` in libraries, `anyhow` only in `app`. `unwrap`, `expect`, `panic!`, `todo!` and `dbg!` are denied outside tests.
-5. `#![forbid(unsafe_code)]` in every workspace crate.
-6. Tests come first for `engine`, `challenges` and `store`. Every bug fix starts with a test that reproduces it.
-7. Extension points come first (§3.3). New features are additive.
-8. Decisions are recorded as ADRs.
-9. The app's own SQL (store, introspection) always uses bound parameters. User-typed SQL is the one deliberate exception.
+3. **Single responsibility, for every function and module.**
+   - **Functions:** each one does one thing at one level of abstraction. Its name says exactly what it does. If the honest name needs "and" or "or" (`parse_and_validate`, `load_or_create`), split it. A function either decides (logic) or does (I/O, rendering), not both.
+   - **Modules:** each one has one reason to change. For example, `checker/columns.rs` changes only when the column-matching rules change, and `sqlite/stream.rs` only when row streaming changes. When a module starts collecting unrelated helpers, split it. No `utils.rs` or `helpers.rs` catch-alls; every module is named for its single responsibility.
+   - **Crates:** one responsibility each, as described in §3.1.
+   - **Enforcement:** reviewers check it, using the PR template question *"Does each new or changed function and module have a single responsibility? Name it in one sentence without 'and'."* The size and complexity limits in §7.2 back it up automatically, and `xtask` rejects files named `utils`, `helpers`, `misc` or `common`.
+   - **Relationship to deep modules (principle 4):** single responsibility is about *cohesion*, meaning everything in a module serves one purpose. Deep modules are about the *interface*, meaning a small public API that hides a lot. A module should have both: one focused purpose, with plenty of logic hidden behind a narrow API.
+4. Deep modules: a narrow, documented public API that hides internals.
+5. Errors are values: `thiserror` in libraries, `anyhow` only in `app`. `unwrap`, `expect`, `panic!`, `todo!` and `dbg!` are denied outside tests.
+6. `#![forbid(unsafe_code)]` in every workspace crate.
+7. Tests come first for `engine`, `challenges` and `store`. Every bug fix starts with a test that reproduces it.
+8. Extension points come first (§3.3). New features are additive.
+9. Decisions are recorded as ADRs.
+10. The app's own SQL (store, introspection) always uses bound parameters. User-typed SQL is the one deliberate exception.
 
 ### 7.2 Size and complexity limits (per function)
 
@@ -298,10 +304,10 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 
 ### 7.5 Workflow
 
-- **`just check`** runs exactly the same steps as CI: fmt, clippy, deny, machete, typos, tests, coverage, complexity, the exceptions check and the dependency-direction check.
+- **`just check`** runs exactly the same steps as CI: fmt, clippy, deny, machete, typos, tests, coverage, complexity, the exceptions check, the dependency-direction check and the module-naming check.
 - **`lefthook`:** fmt and clippy before each commit; `just check` before each push.
 - **GitHub Actions on `macos-14` (arm64)** for every PR. `main` is protected and requires CI to pass.
-- **Conventional Commits.** A PR template that includes the "files touched" question.
+- **Conventional Commits.** A PR template that includes the "files touched" question (§3.3) and the single-responsibility question (§7.1).
 
 ## 8. Release and distribution
 
