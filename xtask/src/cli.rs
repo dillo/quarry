@@ -18,4 +18,6 @@ pub enum Command {
     CheckNames,
     /// Require every crate manifest to inherit the workspace lints.
     CheckManifests,
+    /// Enforce the crate dependency direction.
+    CheckDeps,
 }

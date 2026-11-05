@@ -81,3 +81,17 @@ fn manifests_gate() -> Result<(), TestError> {
     assert_eq!(count(&Command::CheckManifests, dir.path())?, 1);
     Ok(())
 }
+
+#[test]
+fn deps_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    assert_eq!(count(&Command::CheckDeps, dir.path())?, 0);
+    let ui_kit = ENGINE_MANIFEST.replace("quarry-engine", "quarry-ui-kit");
+    write(dir.path(), "crates/ui-kit/Cargo.toml", &ui_kit)?;
+    write(dir.path(), "crates/ui-kit/src/lib.rs", "//! UI.\n")?;
+    let reversed =
+        format!("{ENGINE_MANIFEST}\n[dependencies]\nquarry-ui-kit = {{ path = \"../ui-kit\" }}\n");
+    write(dir.path(), "crates/engine/Cargo.toml", &reversed)?;
+    assert_eq!(count(&Command::CheckDeps, dir.path())?, 1);
+    Ok(())
+}
