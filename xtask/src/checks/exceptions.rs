@@ -72,7 +72,7 @@ impl Scanner {
     /// Returns an error only if a built-in pattern is invalid.
     pub fn new() -> Result<Self, XtaskError> {
         Ok(Self {
-            attribute: Regex::new(r"#!?\[[^\]]*\]")?,
+            attribute: Regex::new(r"#!?\[")?,
             suppression: Regex::new(r"\b(?:allow|expect)\s*\(([^)]*)\)")?,
         })
     }
@@ -80,9 +80,10 @@ impl Scanner {
     /// Returns every suppressed lint in `source`, which came from `file`.
     pub fn find(&self, file: &str, source: &str) -> Vec<Suppression> {
         let mut found = Vec::new();
-        for attribute in self.attribute.find_iter(source) {
-            let line = source[..attribute.start()].matches('\n').count() + 1;
-            for captures in self.suppression.captures_iter(attribute.as_str()) {
+        for start in self.attribute.find_iter(source) {
+            let line = source[..start.start()].matches('\n').count() + 1;
+            let span = bracketed_span(&source[start.start()..]);
+            for captures in self.suppression.captures_iter(span) {
                 let list = captures.get(1).map_or("", |m| m.as_str());
                 found.extend(lint_names(list).into_iter().map(|lint| Suppression {
                     file: file.to_owned(),
@@ -93,6 +94,26 @@ impl Scanner {
         }
         found
     }
+}
+
+/// Returns the prefix of `text` (which starts at an attribute's `[`-opening
+/// text) up to the bracket that balances the first `[`, or all of `text` when
+/// it never balances.
+fn bracketed_span(text: &str) -> &str {
+    let mut depth = 0_usize;
+    for (index, ch) in text.char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[..=index];
+                }
+            }
+            _ => {}
+        }
+    }
+    text
 }
 
 fn lint_names(list: &str) -> Vec<String> {
@@ -210,6 +231,15 @@ mod tests {
         let found = Scanner::new()?.find("f.rs", &source);
         let lints: Vec<_> = found.iter().map(|s| (s.lint.as_str(), s.line)).collect();
         assert_eq!(lints, [("dead_code", 1), ("clippy::unwrap_used", 1)]);
+        Ok(())
+    }
+
+    #[test]
+    fn finds_suppressions_when_reason_contains_brackets() -> TestResult {
+        let source = attr(false, "allow", "dead_code, reason = \"see [1]\"");
+        let found = Scanner::new()?.find("f.rs", &source);
+        let lints: Vec<_> = found.iter().map(|s| s.lint.as_str()).collect();
+        assert_eq!(lints, ["dead_code"]);
         Ok(())
     }
 
