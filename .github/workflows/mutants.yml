@@ -1,0 +1,31 @@
+name: Mutation testing
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC: full run over the core crates
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutants:
+    name: mutants
+    runs-on: macos-14
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just@1.59.0,cargo-mutants@27.1.0
+      - name: Diff against the base branch (pull requests only)
+        if: github.event_name == 'pull_request'
+        run: git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+      - name: Mutation test and gate
+        run: just mutants ${{ github.event_name == 'pull_request' && 'pr.diff' || '' }}
