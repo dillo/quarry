@@ -52,10 +52,11 @@ coverage:
     cargo xtask coverage-gate --report {{coverage_report}}
 
 # Mutation testing of the core crates. Pass a diff file to test only changed code.
-# cargo-mutants exits 2 when mutants are missed; the score gate decides pass/fail.
+# cargo-mutants exits 2 when mutants are missed and 3 when only timeouts occur;
+# both count as "ran" and the score gate decides pass/fail.
 # With nothing to mutate it writes no outcomes.json, so there is nothing to gate.
 mutants diff="":
     rm -rf mutants.out mutants.out.old
     status=0; cargo mutants {{core_packages}} {{ if diff != "" { "--in-diff " + diff } else { "" } }} || status=$?; \
-    if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
+    if [ "$status" -ne 0 ] && [ "$status" -ne 2 ] && [ "$status" -ne 3 ]; then exit "$status"; fi
     if [ -f mutants.out/outcomes.json ]; then cargo xtask mutation-gate --outcomes mutants.out/outcomes.json; else echo "No mutants under the active filters; nothing to gate."; fi
