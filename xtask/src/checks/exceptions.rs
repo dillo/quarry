@@ -56,35 +56,39 @@ pub fn parse_registry(source: &str, origin: &str) -> Result<Vec<Exception>, Xtas
 
 /// Finds lint suppression attributes in Rust source.
 ///
-/// Matches text anywhere in a file, including comments and strings, so it can over-report but never under-report.
+/// Every literal attribute (`#[...]` or `#![...]`) is scanned, and every
+/// suppression inside it is reported, including each one inside a `cfg_attr`.
+/// The scan is textual, so it can over-report: it also matches inside
+/// comments and strings. It does not see attributes that macros generate.
 pub struct Scanner {
-    pattern: Regex,
+    attribute: Regex,
+    suppression: Regex,
 }
 
 impl Scanner {
     /// Builds the scanner.
     ///
     /// # Errors
-    /// Returns an error only if the built-in pattern is invalid.
+    /// Returns an error only if a built-in pattern is invalid.
     pub fn new() -> Result<Self, XtaskError> {
-        let pattern =
-            Regex::new(r"(?:#!?\[\s*|cfg_attr\([^\]]*?,\s*)(?:allow|expect)\s*\(([^)]*)\)")?;
-        Ok(Self { pattern })
+        Ok(Self {
+            attribute: Regex::new(r"#!?\[[^\]]*\]")?,
+            suppression: Regex::new(r"\b(?:allow|expect)\s*\(([^)]*)\)")?,
+        })
     }
 
     /// Returns every suppressed lint in `source`, which came from `file`.
     pub fn find(&self, file: &str, source: &str) -> Vec<Suppression> {
         let mut found = Vec::new();
-        for captures in self.pattern.captures_iter(source) {
-            let start = captures.get(0).map_or(0, |m| m.start());
-            let line = source[..start].matches('\n').count() + 1;
-            let list = captures.get(1).map_or("", |m| m.as_str());
-            for lint in lint_names(list) {
-                found.push(Suppression {
+        for attribute in self.attribute.find_iter(source) {
+            let line = source[..attribute.start()].matches('\n').count() + 1;
+            for captures in self.suppression.captures_iter(attribute.as_str()) {
+                let list = captures.get(1).map_or("", |m| m.as_str());
+                found.extend(lint_names(list).into_iter().map(|lint| Suppression {
                     file: file.to_owned(),
                     line,
                     lint,
-                });
+                }));
             }
         }
         found
@@ -194,6 +198,18 @@ mod tests {
         let found = Scanner::new()?.find("f.rs", &source);
         let lints: Vec<_> = found.iter().map(|s| s.lint.as_str()).collect();
         assert_eq!(lints, ["dead_code", "clippy::x"]);
+        Ok(())
+    }
+
+    #[test]
+    fn finds_every_suppression_in_one_cfg_attr() -> TestResult {
+        let source = format!(
+            "#[cfg_attr(all(), {}(dead_code), {}(clippy::unwrap_used))]",
+            "allow", "allow"
+        );
+        let found = Scanner::new()?.find("f.rs", &source);
+        let lints: Vec<_> = found.iter().map(|s| (s.lint.as_str(), s.line)).collect();
+        assert_eq!(lints, [("dead_code", 1), ("clippy::unwrap_used", 1)]);
         Ok(())
     }
 
