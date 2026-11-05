@@ -26,6 +26,7 @@ pub fn run(command: &Command, root: &Path) -> Result<Vec<Violation>, XtaskError>
         Command::CheckExceptions => exceptions(root),
         Command::Complexity => complexity(root),
         Command::CoverageGate { report } => coverage(root, report),
+        Command::MutationGate { outcomes } => mutation(root, outcomes),
     }
 }
 
@@ -71,6 +72,11 @@ fn complexity(root: &Path) -> Result<Vec<Violation>, XtaskError> {
 fn coverage(root: &Path, report: &Path) -> Result<Vec<Violation>, XtaskError> {
     let targets = Thresholds::load(root)?.coverage;
     checks::coverage::check_report(&files::read(report)?, root, &targets)
+}
+
+fn mutation(root: &Path, outcomes: &Path) -> Result<Vec<Violation>, XtaskError> {
+    let target = Thresholds::load(root)?.mutation;
+    checks::mutation::check_outcomes(&files::read(outcomes)?, &target)
 }
 
 fn registry(root: &Path) -> Result<Vec<Exception>, XtaskError> {

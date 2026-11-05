@@ -159,3 +159,24 @@ fn coverage_gate() -> Result<(), TestError> {
     assert!(commands::run(&missing, dir.path()).is_err());
     Ok(())
 }
+
+#[test]
+fn mutation_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    let gate = Command::MutationGate {
+        outcomes: dir.path().join("outcomes.json"),
+    };
+    write(
+        dir.path(),
+        "outcomes.json",
+        r#"{"caught":9,"missed":1,"timeout":0}"#,
+    )?;
+    assert_eq!(count(&gate, dir.path())?, 0);
+    write(
+        dir.path(),
+        "outcomes.json",
+        r#"{"caught":1,"missed":9,"timeout":0}"#,
+    )?;
+    assert_eq!(count(&gate, dir.path())?, 1);
+    Ok(())
+}

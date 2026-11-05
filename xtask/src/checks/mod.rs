@@ -5,4 +5,5 @@ pub mod coverage;
 pub mod deps;
 pub mod exceptions;
 pub mod manifests;
+pub mod mutation;
 pub mod names;

@@ -32,4 +32,10 @@ pub enum Command {
         #[arg(long)]
         report: PathBuf,
     },
+    /// Enforce the minimum mutation score.
+    MutationGate {
+        /// Path to `mutants.out/outcomes.json`.
+        #[arg(long)]
+        outcomes: PathBuf,
+    },
 }
