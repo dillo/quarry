@@ -50,6 +50,7 @@ pub fn check_members(json: &str, root: &str, roots: &[&str]) -> Result<Vec<Viola
         what: "cargo metadata".to_owned(),
         source,
     })?;
+    let listed = roots.join("/ or ") + "/";
     let prefix = format!("{}/", root.trim_end_matches('/'));
     Ok(metadata
         .packages
@@ -60,7 +61,7 @@ pub fn check_members(json: &str, root: &str, roots: &[&str]) -> Result<Vec<Viola
         .map(|path| {
             Violation::new(
                 path,
-                "workspace member outside crates/ or xtask/; the quality gates do not scan it",
+                format!("workspace member outside {listed}; the quality gates do not scan it"),
             )
         })
         .collect())
@@ -100,7 +101,7 @@ mod tests {
         let found = check_members(&json, "/w", &ROOTS).unwrap_or_default();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].location, "tools/foo/Cargo.toml");
-        assert!(found[0].message.contains("quality gates do not scan it"));
+        assert!(found[0].message.contains("outside crates/ or xtask/;"));
     }
 
     #[test]
