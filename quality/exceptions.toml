@@ -1,0 +1,15 @@
+# Every lint suppression in the workspace, with the reason it is justified.
+# `cargo xtask check-exceptions` fails on any suppression missing from this
+# file, any entry without a reason, and any entry that no longer matches.
+#
+# [[exception]]
+# file = "crates/engine/src/example.rs"
+# lint = "clippy::too_many_lines"
+# reason = "Why this is the clearest form of this code."
+#
+# Waiving the complexity gate for one function (no source attribute needed):
+# [[exception]]
+# file = "crates/engine/src/example.rs"
+# lint = "quarry::complexity"
+# function = "parse_literal"
+# reason = "Why."
