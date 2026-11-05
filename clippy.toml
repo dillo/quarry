@@ -1,0 +1,11 @@
+# Early-warning limits. The authoritative gate is `cargo xtask complexity`,
+# which reads quality/thresholds.toml.
+cognitive-complexity-threshold = 15
+too-many-lines-threshold = 40
+too-many-arguments-threshold = 5
+excessive-nesting-threshold = 4
+type-complexity-threshold = 250
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-dbg-in-tests = true
