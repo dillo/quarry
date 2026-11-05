@@ -2,7 +2,16 @@
 
 use std::path::Path;
 
-use crate::{checks, cli::Command, error::XtaskError, files, process, violation::Violation};
+use crate::{
+    checks::{self, exceptions::Exception},
+    cli::Command,
+    error::XtaskError,
+    files, process,
+    violation::Violation,
+};
+
+/// Location of the exceptions registry, relative to the workspace root.
+pub const EXCEPTIONS_PATH: &str = "quality/exceptions.toml";
 
 /// Runs one gate against the workspace at `root`.
 ///
@@ -13,6 +22,7 @@ pub fn run(command: &Command, root: &Path) -> Result<Vec<Violation>, XtaskError>
         Command::CheckNames => Ok(checks::names::check_paths(&files::rust_files(root)?)),
         Command::CheckManifests => manifests(root),
         Command::CheckDeps => deps(root),
+        Command::CheckExceptions => exceptions(root),
     }
 }
 
@@ -27,4 +37,19 @@ fn manifests(root: &Path) -> Result<Vec<Violation>, XtaskError> {
 fn deps(root: &Path) -> Result<Vec<Violation>, XtaskError> {
     let args = ["metadata", "--format-version", "1", "--no-deps"];
     checks::deps::check_metadata(&process::run_capture("cargo", &args, root)?)
+}
+
+fn exceptions(root: &Path) -> Result<Vec<Violation>, XtaskError> {
+    let scanner = checks::exceptions::Scanner::new()?;
+    let mut found = Vec::new();
+    for path in files::rust_files(root)? {
+        let source = files::read(&root.join(&path))?;
+        found.extend(scanner.find(&files::display(&path), &source));
+    }
+    Ok(checks::exceptions::check(&found, &registry(root)?))
+}
+
+fn registry(root: &Path) -> Result<Vec<Exception>, XtaskError> {
+    let path = root.join(EXCEPTIONS_PATH);
+    checks::exceptions::parse_registry(&files::read(&path)?, &files::display(&path))
 }

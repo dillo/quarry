@@ -95,3 +95,16 @@ fn deps_gate() -> Result<(), TestError> {
     assert_eq!(count(&Command::CheckDeps, dir.path())?, 1);
     Ok(())
 }
+
+#[test]
+fn exceptions_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    assert_eq!(count(&Command::CheckExceptions, dir.path())?, 0);
+    // Built with format! so this file does not trip the gate it is testing.
+    let suppression = format!("#![{}(dead_code)]\n{ENGINE_SOURCE}", "allow");
+    write(dir.path(), "crates/engine/src/lib.rs", &suppression)?;
+    assert_eq!(count(&Command::CheckExceptions, dir.path())?, 1);
+    let empty = tempfile::tempdir()?;
+    assert!(commands::run(&Command::CheckExceptions, empty.path()).is_err());
+    Ok(())
+}

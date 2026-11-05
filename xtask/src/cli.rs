@@ -20,4 +20,6 @@ pub enum Command {
     CheckManifests,
     /// Enforce the crate dependency direction.
     CheckDeps,
+    /// Require every lint suppression to be registered with a reason.
+    CheckExceptions,
 }
