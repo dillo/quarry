@@ -108,3 +108,19 @@ fn exceptions_gate() -> Result<(), TestError> {
     assert!(commands::run(&Command::CheckExceptions, empty.path()).is_err());
     Ok(())
 }
+
+#[test]
+fn complexity_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    assert_eq!(count(&Command::Complexity, dir.path())?, 0);
+    let arms = (0..12)
+        .map(|n| format!("        {n} => {n},\n"))
+        .collect::<Vec<_>>()
+        .concat();
+    let branchy = format!(
+        "//! E.\n\n/// M.\npub fn map(x: i32) -> i32 {{\n    match x {{\n{arms}        _ => 0,\n    }}\n}}\n"
+    );
+    write(dir.path(), "crates/engine/src/lib.rs", &branchy)?;
+    assert!(count(&Command::Complexity, dir.path())? >= 1);
+    Ok(())
+}

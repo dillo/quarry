@@ -7,6 +7,7 @@ use crate::{
     cli::Command,
     error::XtaskError,
     files, process,
+    thresholds::Thresholds,
     violation::Violation,
 };
 
@@ -23,6 +24,7 @@ pub fn run(command: &Command, root: &Path) -> Result<Vec<Violation>, XtaskError>
         Command::CheckManifests => manifests(root),
         Command::CheckDeps => deps(root),
         Command::CheckExceptions => exceptions(root),
+        Command::Complexity => complexity(root),
     }
 }
 
@@ -47,6 +49,22 @@ fn exceptions(root: &Path) -> Result<Vec<Violation>, XtaskError> {
         found.extend(scanner.find(&files::display(&path), &source));
     }
     Ok(checks::exceptions::check(&found, &registry(root)?))
+}
+
+fn complexity(root: &Path) -> Result<Vec<Violation>, XtaskError> {
+    let limits = Thresholds::load(root)?.complexity;
+    let mut report = String::new();
+    for dir in files::source_dirs(root) {
+        let dir = files::display(&dir);
+        let args = ["-m", "-O", "json", "-p", dir.as_str()];
+        report.push_str(&process::run_capture(
+            "rust-code-analysis-cli",
+            &args,
+            root,
+        )?);
+        report.push('\n');
+    }
+    checks::complexity::check_report(&report, root, &limits, &registry(root)?)
 }
 
 fn registry(root: &Path) -> Result<Vec<Exception>, XtaskError> {

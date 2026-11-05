@@ -22,4 +22,6 @@ pub enum Command {
     CheckDeps,
     /// Require every lint suppression to be registered with a reason.
     CheckExceptions,
+    /// Enforce per-function size and complexity limits.
+    Complexity,
 }
