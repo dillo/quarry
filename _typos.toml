@@ -1,0 +1,2 @@
+[files]
+extend-exclude = ["docs/design/mockups/*", "spikes/**/target", "target"]
