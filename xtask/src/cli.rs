@@ -16,4 +16,6 @@ pub struct Cli {
 pub enum Command {
     /// Reject catch-all module names such as `utils.rs`.
     CheckNames,
+    /// Require every crate manifest to inherit the workspace lints.
+    CheckManifests,
 }

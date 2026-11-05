@@ -71,3 +71,13 @@ fn names_gate() -> Result<(), TestError> {
     assert_eq!(count(&Command::CheckNames, dir.path())?, 1);
     Ok(())
 }
+
+#[test]
+fn manifests_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    assert_eq!(count(&Command::CheckManifests, dir.path())?, 0);
+    let opted_out = ENGINE_MANIFEST.replace("workspace = true", "workspace = false");
+    write(dir.path(), "crates/engine/Cargo.toml", &opted_out)?;
+    assert_eq!(count(&Command::CheckManifests, dir.path())?, 1);
+    Ok(())
+}

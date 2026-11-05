@@ -11,5 +11,14 @@ use crate::{checks, cli::Command, error::XtaskError, files, violation::Violation
 pub fn run(command: &Command, root: &Path) -> Result<Vec<Violation>, XtaskError> {
     match command {
         Command::CheckNames => Ok(checks::names::check_paths(&files::rust_files(root)?)),
+        Command::CheckManifests => manifests(root),
     }
+}
+
+fn manifests(root: &Path) -> Result<Vec<Violation>, XtaskError> {
+    let mut found = Vec::new();
+    for path in files::member_manifests(root)? {
+        found.push((files::display(&path), files::read(&root.join(&path))?));
+    }
+    Ok(checks::manifests::check(&found))
 }
