@@ -13,6 +13,6 @@ The UI must feel native and fast enough to beat Electron-based Beekeeper Studio,
 - Upgrades are deliberate PRs.
 
 ## Consequences
-- The whole app is Rust, renders at 120 fps, and gets real frosted-glass windows.
+- The whole app is Rust, targets 120 fps, which the Phase 0 spike verifies, and gets real frosted-glass windows.
 - The documentation is thin and the API changes between versions, which is why there's a Phase 0 spike.
 - GPUI-specific code is confined to `app` and `ui-kit`.

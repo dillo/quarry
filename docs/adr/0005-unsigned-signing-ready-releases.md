@@ -10,7 +10,7 @@
 
 ## Decision
 - Ship an ad-hoc signed app.
-- The cask's postflight step removes the quarantine flag, as `brewery.rb` already does.
+- The cask's postflight step removes the quarantine flag, the approach already used by the `brewery` cask in `dillo/homebrew-tap`.
 - The release workflow's codesign and `notarytool` steps run only when `APPLE_DEVELOPER_ID_*` secrets exist.
 
 ## Consequences
