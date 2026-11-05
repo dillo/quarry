@@ -23,7 +23,7 @@ Quarry is a native macOS (Apple Silicon) SQL client with two purposes:
 | Concern | Choice | Reason |
 |---|---|---|
 | Language | Rust (stable, pinned via `rust-toolchain.toml`) | User goal; performance and safety |
-| UI | **GPUI** (Zed) + **`gpui-component`**, pinned to exact git revisions | Pure Rust and drawn on the GPU with Metal; supports real frosted-glass windows; includes an editor and a virtualized table |
+| UI | **GPUI** via **`gpui-kit`** (bundles GPUI + `gpui-component`), pinned to an exact crates.io version | Pure Rust and drawn on the GPU with Metal; supports real frosted-glass windows; includes an editor and a virtualized table |
 | Built-in database | **SQLite** via `rusqlite` (bundled) | Runs inside the app with nothing to install; the backup API resets sandboxes instantly |
 | PostgreSQL | `tokio-postgres` + `rustls` | Streams rows; true query cancellation |
 | MySQL | `mysql_async` + `rustls` | Streams rows; cancellation via `KILL QUERY` |
@@ -300,7 +300,7 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 - `rustfmt`.
 - `clippy` with `-D warnings` and the pedantic group, plus the restriction lints listed in §7.1.
 - `cargo-deny`: RustSec vulnerability advisories, a license allowlist, duplicate dependency versions and unknown sources.
-- `cargo-machete` (unused dependencies), `typos` (spelling) and a `cargo-geiger` report (`unsafe` code in dependencies).
+- `cargo-machete` (unused dependencies), `typos` (spelling) and a `cargo-geiger` report (deferred: 0.14.0 fails on this workspace, see ADR 0004).
 
 ### 7.5 Workflow
 
@@ -339,7 +339,7 @@ Each phase gets its own implementation plan. Each one ends with a usable app and
 
 | Risk | Mitigation |
 |---|---|
-| GPUI API changes and sparse documentation | Pin exact revisions and upgrade on purpose; Phase 0 spike; keep GPUI-specific code in `app` and `ui-kit` |
+| GPUI API changes and sparse documentation | Pin `gpui-kit` with `=`; upgrade on purpose; Phase 0 spike; keep GPUI-specific code in `app` and `ui-kit` |
 | `gpui-component` editor completion can't be fully removed | The spike checks this first. Fallback: a thin editor of our own built on GPUI's text input primitives |
 | `rust-code-analysis-cli` is pre-1.0 | Pin the version; clippy's limits still apply if it breaks |
 | Users hit Gatekeeper warnings while unsigned | The cask's postflight removes the quarantine flag; signing switches on once Apple credentials are added |
