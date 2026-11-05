@@ -1,5 +1,7 @@
 //! The command-line interface: one subcommand per quality gate.
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 /// Quarry workspace quality gates.
@@ -24,4 +26,10 @@ pub enum Command {
     CheckExceptions,
     /// Enforce per-function size and complexity limits.
     Complexity,
+    /// Enforce per-crate coverage thresholds.
+    CoverageGate {
+        /// Path to the `cargo llvm-cov --json --summary-only` report.
+        #[arg(long)]
+        report: PathBuf,
+    },
 }

@@ -2,7 +2,7 @@
 
 mod support;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use support::{TestError, write};
 use xtask::{
@@ -122,5 +122,40 @@ fn complexity_gate() -> Result<(), TestError> {
     );
     write(dir.path(), "crates/engine/src/lib.rs", &branchy)?;
     assert!(count(&Command::Complexity, dir.path())? >= 1);
+    Ok(())
+}
+
+#[test]
+fn coverage_gate() -> Result<(), TestError> {
+    let dir = fixture()?;
+    let file = |name: &str, covered: u32| {
+        format!(
+            r#"{{"filename":"{name}","summary":{{"lines":{{"count":10,"covered":{covered}}},"regions":{{"count":10,"covered":{covered}}}}}}}"#
+        )
+    };
+    let engine = dir
+        .path()
+        .join("crates/engine/src/lib.rs")
+        .display()
+        .to_string();
+    write(
+        dir.path(),
+        "cov.json",
+        &format!(r#"{{"data":[{{"files":[{}]}}]}}"#, file(&engine, 10)),
+    )?;
+    let gate = Command::CoverageGate {
+        report: dir.path().join("cov.json"),
+    };
+    assert_eq!(count(&gate, dir.path())?, 0);
+    write(
+        dir.path(),
+        "cov.json",
+        &format!(r#"{{"data":[{{"files":[{}]}}]}}"#, file(&engine, 5)),
+    )?;
+    assert_eq!(count(&gate, dir.path())?, 2);
+    let missing = Command::CoverageGate {
+        report: PathBuf::from("/no/such/report.json"),
+    };
+    assert!(commands::run(&missing, dir.path()).is_err());
     Ok(())
 }

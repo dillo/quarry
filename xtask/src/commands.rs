@@ -25,6 +25,7 @@ pub fn run(command: &Command, root: &Path) -> Result<Vec<Violation>, XtaskError>
         Command::CheckDeps => deps(root),
         Command::CheckExceptions => exceptions(root),
         Command::Complexity => complexity(root),
+        Command::CoverageGate { report } => coverage(root, report),
     }
 }
 
@@ -65,6 +66,11 @@ fn complexity(root: &Path) -> Result<Vec<Violation>, XtaskError> {
         report.push('\n');
     }
     checks::complexity::check_report(&report, root, &limits, &registry(root)?)
+}
+
+fn coverage(root: &Path, report: &Path) -> Result<Vec<Violation>, XtaskError> {
+    let targets = Thresholds::load(root)?.coverage;
+    checks::coverage::check_report(&files::read(report)?, root, &targets)
 }
 
 fn registry(root: &Path) -> Result<Vec<Exception>, XtaskError> {
