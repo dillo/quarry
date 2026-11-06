@@ -306,7 +306,7 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 
 - **`just check`** runs exactly the same steps as CI: fmt, clippy, deny, machete, typos, tests, coverage, complexity, the exceptions check, the dependency-direction check and the module-naming check.
 - **`lefthook`:** fmt and clippy before each commit; `just check` before each push.
-- **GitHub Actions on `macos-14` (arm64)** for every PR. `main` is protected and requires CI to pass.
+- **GitHub Actions on `macos-15` (arm64; `macos-14` was retired)** for every PR. `main` is protected and requires CI to pass.
 - **Conventional Commits.** A PR template that includes the "files touched" question (§3.3) and the single-responsibility question (§7.1).
 
 ## 8. Release and distribution
