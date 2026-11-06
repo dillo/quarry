@@ -1,0 +1,15 @@
+# Installed by `just setup`. Fast checks before each commit; the full gate
+# (identical to CI) before each push.
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    clippy:
+      glob: "*.{rs,toml}"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+pre-push:
+  commands:
+    check:
+      run: just check

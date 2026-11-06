@@ -1,0 +1,36 @@
+# Every numeric quality gate lives here (design spec §7.2, §7.3).
+# Changing a number is a reviewed decision: say why in the PR.
+
+[complexity]          # per function
+cyclomatic = 10
+cognitive = 15
+logical_lines = 15    # statements
+physical_lines = 40   # lines containing code
+
+# Coverage targets per crate directory, in percent.
+[coverage.engine]
+lines = 95.0
+regions = 90.0
+
+[coverage.challenges]
+lines = 95.0
+regions = 90.0
+
+[coverage.store]
+lines = 95.0
+regions = 90.0
+
+[coverage.ui-kit]
+lines = 80.0
+regions = 70.0
+
+[coverage.app]
+lines = 80.0
+regions = 70.0
+
+[coverage.xtask]
+lines = 90.0
+regions = 85.0
+
+[mutation]
+min_score = 90.0      # percent of viable mutants caught (core crates)

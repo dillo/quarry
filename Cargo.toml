@@ -1,0 +1,49 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+exclude = ["spikes"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+regex = "1.13.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.154"
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+toml = "1.2.0"
+walkdir = "2.5.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+# Pedantic is the baseline. The two allows below are workspace-wide policy
+# decisions (reviewed here, not per-site): `must_use_candidate` fires on almost
+# every pure function, and `module_name_repetitions` fights clear naming such
+# as `error::XtaskError`.
+pedantic = { level = "deny", priority = -1 }
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+# Restriction lints from the design spec §7.1.
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+# Size and complexity limits (thresholds live in clippy.toml).
+cognitive_complexity = "deny"
+excessive_nesting = "deny"
+too_many_arguments = "deny"
+type_complexity = "deny"
+
+[profile.dev]
+debug = "line-tables-only"
