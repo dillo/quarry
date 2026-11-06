@@ -1,0 +1,12 @@
+# Throwaway Phase 0 spike (design spec §9). Its own workspace, outside the
+# quality gates; findings go to docs/spikes/phase-0-gpui.md.
+[package]
+name = "gpui-spike"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+gpui-kit = { version = "=0.9.0", features = ["tree-sitter-sql"] }
