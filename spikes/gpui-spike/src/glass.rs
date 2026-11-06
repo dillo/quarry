@@ -15,11 +15,16 @@ pub fn panel() -> Div {
 }
 
 /// The Aurora background with partial alpha so the window blur shows through.
+/// Alpha comes from `SPIKE_ALPHA` (hex byte, e.g. `80`), default `d0`.
 pub fn aurora_background() -> Background {
+    let alpha = std::env::var("SPIKE_ALPHA")
+        .ok()
+        .and_then(|a| u32::from_str_radix(&a, 16).ok())
+        .unwrap_or(0xd0);
     linear_gradient(
         135.,
-        linear_color_stop(rgba(0x1b1530d0), 0.),
-        linear_color_stop(rgba(0x0b1b22d0), 1.),
+        linear_color_stop(rgba(0x1b1530_00 | alpha), 0.),
+        linear_color_stop(rgba(0x0b1b22_00 | alpha), 1.),
     )
 }
 
