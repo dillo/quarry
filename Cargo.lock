@@ -236,6 +236,9 @@ version = "0.0.0"
 [[package]]
 name = "quarry-engine"
 version = "0.0.0"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "quarry-store"
