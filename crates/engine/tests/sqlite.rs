@@ -171,3 +171,16 @@ fn a_broken_view_does_not_blank_the_schema() -> TestResult {
     assert!(schema.tables[0].columns.is_empty());
     Ok(())
 }
+
+#[test]
+fn rows_affected_excludes_trigger_changes() -> TestResult {
+    let mut driver = SqliteDriver::open_in_memory()?;
+    driver.execute_script(
+        "CREATE TABLE t(x); CREATE TABLE log(y);
+        CREATE TRIGGER u AFTER UPDATE ON t BEGIN INSERT INTO log VALUES (1); END;
+        INSERT INTO t VALUES (1);",
+    )?;
+    let summary = driver.execute("UPDATE t SET x = 2", &mut QueryResult::default())?;
+    assert_eq!(summary.rows_affected, Some(1));
+    Ok(())
+}

@@ -25,7 +25,13 @@ pub(super) fn execute(
     let columns = columns_of(&statement);
     if columns.is_empty() {
         statement.raw_execute().map_err(convert::error)?;
-        let affected = connection.total_changes() - changes_before;
+        // `changes()` is this statement's own count (triggers excluded) but is
+        // stale after DDL, so only trust it when the total moved.
+        let affected = if connection.total_changes() == changes_before {
+            0
+        } else {
+            connection.changes()
+        };
         return Ok(Summary {
             rows: 0,
             rows_affected: Some(affected),
