@@ -8,6 +8,7 @@ pub mod error;
 pub mod registry;
 pub mod result;
 pub mod schema;
+pub mod session;
 pub mod splitter;
 pub mod sqlite;
 pub mod value;
