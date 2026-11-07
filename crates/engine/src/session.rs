@@ -2,12 +2,16 @@
 //!
 //! The UI submits scripts with [`Session::run`] and reads [`RunEvent`]s from
 //! the returned [`RunHandle`] without ever blocking. Runs execute one at a
-//! time, in submission order. Dropping a handle stops its run.
+//! time, in submission order. Dropping a handle stops its run, and dropping
+//! the session stops whichever run is executing.
+//!
+//! A cancel affects only the run it belongs to; the lock makes check-and-set
+//! atomic with run transitions.
 
 use std::{
     ops::Range,
     sync::{
-        Arc,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc,
     },
@@ -64,9 +68,15 @@ pub struct RunHandle {
     shared: Arc<Shared>,
 }
 
+/// State the session thread shares with every handle.
+///
+/// A cancel affects only the run it belongs to; the lock makes check-and-set
+/// atomic with run transitions. The lock guards only those flag transitions:
+/// it is never held while a statement runs or an event is sent.
 struct Shared {
     driver_canceller: Canceller,
-    current_run: AtomicU64,
+    /// The executing run's id, or 0 when none is executing.
+    current_run: Mutex<u64>,
 }
 
 struct RunState {
@@ -88,7 +98,7 @@ impl Session {
     pub fn start(driver: Box<dyn Driver>) -> Self {
         let shared = Arc::new(Shared {
             driver_canceller: driver.canceller(),
-            current_run: AtomicU64::new(0),
+            current_run: Mutex::new(0),
         });
         let (jobs, inbox) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
@@ -137,11 +147,67 @@ impl Session {
 impl RunHandle {
     /// Cancels this run: the running statement is interrupted and later
     /// statements are skipped. Has no effect once the run is done.
+    ///
+    /// After cancelling, keep reading until [`RunEvent::Done`] or drop the
+    /// handle. A reader that stops reading without dropping the handle stalls
+    /// the session, because the event channel is bounded.
     pub fn cancel(&self) {
-        self.run.cancelled.store(true, Ordering::SeqCst);
-        if self.shared.current_run.load(Ordering::SeqCst) == self.run.id {
-            self.shared.driver_canceller.cancel();
+        self.shared.cancel_run(&self.run);
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        self.shared.cancel_current();
+    }
+}
+
+impl Shared {
+    fn current(&self) -> std::sync::MutexGuard<'_, u64> {
+        self.current_run
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Marks `run` cancelled, interrupting the driver only if `run` is executing.
+    fn cancel_run(&self, run: &RunState) {
+        let current = self.current();
+        run.cancelled.store(true, Ordering::SeqCst);
+        if *current == run.id {
+            self.driver_canceller.cancel();
         }
+    }
+
+    /// Interrupts whichever run is executing, if any.
+    fn cancel_current(&self) {
+        let current = self.current();
+        if *current != 0 {
+            self.driver_canceller.cancel();
+        }
+    }
+
+    fn begin_run(&self, id: u64) {
+        *self.current() = id;
+    }
+
+    /// Clears the driver flag for the next statement; returns whether `run`
+    /// may go on (false once it has been cancelled).
+    fn begin_statement(&self, run: &RunState) -> bool {
+        let _current = self.current();
+        self.driver_canceller.reset();
+        !run.cancelled.load(Ordering::SeqCst)
+    }
+
+    fn end_run(&self) {
+        let mut current = self.current();
+        *current = 0;
+        self.driver_canceller.reset();
+    }
+
+    /// Clears the driver flag before a schema read, outside of any run.
+    fn begin_schema(&self) {
+        let _current = self.current();
+        self.driver_canceller.reset();
     }
 }
 
@@ -168,6 +234,7 @@ fn work(mut driver: Box<dyn Driver>, inbox: &mpsc::Receiver<Job>, shared: &Share
                 active.execute(driver.as_mut());
             }
             Job::Schema(reply) => {
+                shared.begin_schema();
                 let _ = reply.send_blocking(driver.schema());
             }
         }
@@ -184,22 +251,19 @@ struct ActiveRun<'a> {
 
 impl ActiveRun<'_> {
     fn execute(&self, driver: &mut dyn Driver) {
-        self.shared
-            .current_run
-            .store(self.state.id, Ordering::SeqCst);
+        self.shared.begin_run(self.state.id);
         for (index, range) in splitter::split(self.script).into_iter().enumerate() {
             if !self.statement(driver, index, range) {
                 break;
             }
         }
-        self.shared.current_run.store(0, Ordering::SeqCst);
+        self.shared.end_run();
         let _ = self.events.send_blocking(RunEvent::Done);
     }
 
     /// Runs one statement; returns whether the script should continue.
     fn statement(&self, driver: &mut dyn Driver, index: usize, range: Range<usize>) -> bool {
-        self.shared.driver_canceller.reset();
-        if self.state.cancelled.load(Ordering::SeqCst) {
+        if !self.shared.begin_statement(self.state) {
             let _ = self
                 .events
                 .send_blocking(RunEvent::Failed(EngineError::Cancelled));
