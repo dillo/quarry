@@ -32,7 +32,7 @@ impl fmt::Display for Value {
         match self {
             Self::Null => f.write_str("NULL"),
             Self::Int(n) => write!(f, "{n}"),
-            Self::Float(x) => write!(f, "{x}"),
+            Self::Float(x) => write!(f, "{x:?}"),
             Self::Text(s) => f.write_str(s),
             Self::Bytes(b) => write!(f, "<{} bytes>", b.len()),
         }
@@ -49,13 +49,18 @@ mod tests {
             Value::Null,
             Value::Int(-42),
             Value::Float(2.5),
+            Value::Float(1.0),
+            Value::Float(1e300),
             Value::Text("Orbital".to_owned()),
             Value::Bytes(vec![1, 2, 3]),
         ]
         .iter()
         .map(ToString::to_string)
         .collect();
-        assert_eq!(shown, ["NULL", "-42", "2.5", "Orbital", "<3 bytes>"]);
+        assert_eq!(
+            shown,
+            ["NULL", "-42", "2.5", "1.0", "1e300", "Orbital", "<3 bytes>"]
+        );
     }
 
     #[test]
