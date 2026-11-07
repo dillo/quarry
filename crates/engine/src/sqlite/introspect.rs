@@ -25,30 +25,34 @@ pub(super) fn schema(connection: &Connection) -> Result<Schema, EngineError> {
     let tables = entries
         .into_iter()
         .map(|(name, kind)| table(connection, name, &kind))
-        .collect::<Result<_, _>>()?;
+        .collect();
     Ok(Schema { tables })
 }
 
-fn table(connection: &Connection, name: String, kind: &str) -> Result<Table, EngineError> {
-    let mut statement = connection.prepare(COLUMNS).map_err(convert::error)?;
-    let columns = statement
-        .query_map([&name], |row| {
-            Ok(ColumnInfo {
-                name: row.get(0)?,
-                type_name: row.get(1)?,
-                primary_key: row.get::<_, i64>(2)? > 0,
-            })
-        })
-        .and_then(Iterator::collect::<rusqlite::Result<Vec<_>>>)
-        .map_err(convert::error)?;
+/// A table or view whose columns cannot be read (e.g. a view over a dropped
+/// table) is still listed, with no columns.
+fn table(connection: &Connection, name: String, kind: &str) -> Table {
+    let columns = columns(connection, &name).unwrap_or_default();
     let kind = if kind == "view" {
         TableKind::View
     } else {
         TableKind::Table
     };
-    Ok(Table {
+    Table {
         name,
         kind,
         columns,
-    })
+    }
+}
+
+fn columns(connection: &Connection, table: &str) -> rusqlite::Result<Vec<ColumnInfo>> {
+    let mut statement = connection.prepare(COLUMNS)?;
+    let columns = statement.query_map([table], |row| {
+        Ok(ColumnInfo {
+            name: row.get(0)?,
+            type_name: row.get(1)?,
+            primary_key: row.get::<_, i64>(2)? > 0,
+        })
+    })?;
+    columns.collect()
 }

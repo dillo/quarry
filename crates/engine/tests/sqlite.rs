@@ -159,3 +159,15 @@ fn files_persist_and_bad_paths_fail_to_open() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn a_broken_view_does_not_blank_the_schema() -> TestResult {
+    let mut driver = SqliteDriver::open_in_memory()?;
+    driver.execute_script("CREATE TABLE a(x); CREATE VIEW v AS SELECT x FROM a; DROP TABLE a;")?;
+    let schema = driver.schema()?;
+    assert_eq!(schema.tables.len(), 1);
+    assert_eq!(schema.tables[0].name, "v");
+    assert_eq!(schema.tables[0].kind, TableKind::View);
+    assert!(schema.tables[0].columns.is_empty());
+    Ok(())
+}
