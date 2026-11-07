@@ -184,3 +184,17 @@ fn rows_affected_excludes_trigger_changes() -> TestResult {
     assert_eq!(summary.rows_affected, Some(1));
     Ok(())
 }
+
+#[test]
+fn user_tables_that_resemble_internal_names_are_listed() -> TestResult {
+    let mut driver = SqliteDriver::open_in_memory()?;
+    driver.execute_script("CREATE TABLE SqliteSettings(x);")?;
+    let names: Vec<String> = driver
+        .schema()?
+        .tables
+        .into_iter()
+        .map(|t| t.name)
+        .collect();
+    assert_eq!(names, ["SqliteSettings"]);
+    Ok(())
+}

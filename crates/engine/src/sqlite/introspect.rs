@@ -9,7 +9,7 @@ use crate::{
 };
 
 const TABLES: &str = "SELECT name, type FROM sqlite_schema \
-    WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name";
+    WHERE type IN ('table', 'view') AND substr(name, 1, 7) <> 'sqlite_' ORDER BY name";
 
 const COLUMNS: &str = "SELECT name, type, pk FROM pragma_table_info(?1) ORDER BY cid";
 
