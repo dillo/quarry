@@ -23,6 +23,9 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 const ENDLESS: &str =
     "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT max(x) FROM n";
 
+/// Streams 100,000 rows: far more than the event buffer holds.
+const MANY: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000) SELECT x FROM n";
+
 fn session() -> Result<Session, EngineError> {
     let mut driver = SqliteDriver::open_in_memory()?;
     driver.execute_script("CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (1), (2);")?;
@@ -90,6 +93,34 @@ impl Driver for GateDriver {
     }
 }
 
+/// A driver whose statements each send 16 empty batches, more than the event
+/// buffer holds after `Started`, then succeed whatever the cancel flag says.
+#[derive(Default)]
+struct BurstDriver {
+    canceller: Canceller,
+}
+
+impl Driver for BurstDriver {
+    fn execute(&mut self, _sql: &str, sink: &mut dyn RowSink) -> Result<Summary, EngineError> {
+        for _ in 0..16 {
+            sink.rows(Vec::new());
+        }
+        Ok(Summary {
+            rows: 0,
+            rows_affected: None,
+            elapsed: Duration::ZERO,
+        })
+    }
+
+    fn schema(&mut self) -> Result<Schema, EngineError> {
+        Ok(Schema::default())
+    }
+
+    fn canceller(&self) -> Canceller {
+        self.canceller.clone()
+    }
+}
+
 /// Reads events until `Done`, which is included.
 fn drain(handle: &RunHandle) -> Result<Vec<RunEvent>, async_channel::RecvError> {
     let mut events = Vec::new();
@@ -101,6 +132,16 @@ fn drain(handle: &RunHandle) -> Result<Vec<RunEvent>, async_channel::RecvError> 
             return Ok(events);
         }
     }
+}
+
+fn row_count(events: &[RunEvent]) -> usize {
+    events
+        .iter()
+        .map(|event| match event {
+            RunEvent::Rows(batch) => batch.len(),
+            _ => 0,
+        })
+        .sum()
 }
 
 fn kinds(events: &[RunEvent]) -> Vec<&'static str> {
@@ -186,15 +227,16 @@ fn cancel_interrupts_the_running_statement_and_skips_the_rest() -> TestResult {
 #[test]
 fn cancelling_a_queued_run_leaves_the_running_one_alone() -> TestResult {
     let session = session()?;
-    let many = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000) SELECT x FROM n";
-    let first = session.run(many);
+    let first = session.run(MANY);
     let second = session.run("SELECT 1");
     // Nothing reads `first` yet, so the bounded channel holds the worker
     // inside it: `first` is still running when `second` is cancelled.
     second.cancel();
     let first_events = drain(&first)?;
-    let ending = kinds(&first_events[first_events.len() - 2..]);
-    assert_eq!(ending, ["finished", "done"], "{:?}", first_events.last());
+    let first_kinds = kinds(&first_events);
+    let tail = &first_kinds[first_kinds.len().saturating_sub(3)..];
+    assert!(first_kinds.ends_with(&["finished", "done"]), "{tail:?}");
+    assert_eq!(row_count(&first_events), 100_000);
     assert_eq!(
         drain(&second)?,
         [RunEvent::Failed(EngineError::Cancelled), RunEvent::Done]
@@ -225,8 +267,7 @@ fn dropping_a_handle_stops_its_run_and_frees_the_session() -> TestResult {
 #[test]
 fn a_dropped_reader_of_a_large_result_does_not_block_the_session() -> TestResult {
     let session = session()?;
-    let many = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000) SELECT x FROM n";
-    drop(session.run(many));
+    drop(session.run(MANY));
     assert_eq!(
         kinds(&drain(&session.run("SELECT 1"))?),
         ["started", "columns", "rows", "finished", "done"]
@@ -302,5 +343,68 @@ fn a_finished_runs_late_cancel_does_not_interrupt_a_schema_read() -> TestResult 
     drop(handle);
     release.store(true, Ordering::SeqCst);
     assert_eq!(reply.recv_blocking()?, Ok(Schema::default()));
+    Ok(())
+}
+
+#[test]
+fn dropping_the_session_stops_a_multi_statement_run() -> TestResult {
+    let session = session()?;
+    let handle = session.run(format!("{MANY}; SELECT 1"));
+    assert!(matches!(
+        handle.events.recv_blocking()?,
+        RunEvent::Started { index: 0, .. }
+    ));
+    drop(session);
+    let rest = drain(&handle)?;
+    let second_started = rest
+        .iter()
+        .any(|e| matches!(e, RunEvent::Started { index: 1, .. }));
+    assert!(!second_started, "the second statement must not start");
+    let ending = [RunEvent::Failed(EngineError::Cancelled), RunEvent::Done];
+    assert!(
+        rest.ends_with(&ending),
+        "{:?}",
+        &rest[rest.len().saturating_sub(3)..]
+    );
+    Ok(())
+}
+
+#[test]
+fn dropping_the_session_fails_queued_runs() -> TestResult {
+    let session = session()?;
+    let first = session.run(ENDLESS);
+    assert!(matches!(
+        first.events.recv_blocking()?,
+        RunEvent::Started { .. }
+    ));
+    let second = session.run("SELECT 1");
+    drop(session);
+    let rest = drain(&first)?;
+    let ending = [RunEvent::Failed(EngineError::Cancelled), RunEvent::Done];
+    assert!(rest.ends_with(&ending), "{rest:?}");
+    assert_eq!(drain(&second)?, ending);
+    Ok(())
+}
+
+#[test]
+fn dropping_the_session_stops_a_run_whose_statement_ignores_the_interrupt() -> TestResult {
+    let session = Session::start(Box::new(BurstDriver::default()));
+    let handle = session.run("SELECT 1; SELECT 2");
+    // A full buffer means the worker is blocked inside the first statement.
+    while !handle.events.is_full() {
+        std::thread::yield_now();
+    }
+    drop(session);
+    let rest = drain(&handle)?;
+    let second_started = rest
+        .iter()
+        .any(|e| matches!(e, RunEvent::Started { index: 1, .. }));
+    assert!(!second_started, "the second statement must not start");
+    let ending = [RunEvent::Failed(EngineError::Cancelled), RunEvent::Done];
+    assert!(
+        rest.ends_with(&ending),
+        "{:?}",
+        &rest[rest.len().saturating_sub(3)..]
+    );
     Ok(())
 }

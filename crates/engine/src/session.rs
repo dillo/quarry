@@ -2,8 +2,10 @@
 //!
 //! The UI submits scripts with [`Session::run`] and reads [`RunEvent`]s from
 //! the returned [`RunHandle`] without ever blocking. Runs execute one at a
-//! time, in submission order. Dropping a handle stops its run, and dropping
-//! the session stops whichever run is executing.
+//! time, in submission order. Dropping a handle stops its run. Dropping the
+//! session stops all remaining work: the executing run is interrupted, none
+//! of its later statements start, and queued runs fail with
+//! [`EngineError::Cancelled`].
 //!
 //! A cancel affects only the run it belongs to; the lock makes check-and-set
 //! atomic with run transitions.
@@ -77,6 +79,8 @@ struct Shared {
     driver_canceller: Canceller,
     /// The executing run's id, or 0 when none is executing.
     current_run: Mutex<u64>,
+    /// Set once the [`Session`] is dropped; no statement starts after that.
+    closed: AtomicBool,
 }
 
 struct RunState {
@@ -99,6 +103,7 @@ impl Session {
         let shared = Arc::new(Shared {
             driver_canceller: driver.canceller(),
             current_run: Mutex::new(0),
+            closed: AtomicBool::new(false),
         });
         let (jobs, inbox) = mpsc::channel();
         let worker_shared = Arc::clone(&shared);
@@ -158,7 +163,7 @@ impl RunHandle {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        self.shared.cancel_current();
+        self.shared.close();
     }
 }
 
@@ -178,9 +183,11 @@ impl Shared {
         }
     }
 
-    /// Interrupts whichever run is executing, if any.
-    fn cancel_current(&self) {
+    /// Stops all remaining work: no statement starts after this, and the
+    /// executing run, if any, is interrupted.
+    fn close(&self) {
         let current = self.current();
+        self.closed.store(true, Ordering::SeqCst);
         if *current != 0 {
             self.driver_canceller.cancel();
         }
@@ -191,11 +198,11 @@ impl Shared {
     }
 
     /// Clears the driver flag for the next statement; returns whether `run`
-    /// may go on (false once it has been cancelled).
+    /// may go on (false once it or the session has been cancelled).
     fn begin_statement(&self, run: &RunState) -> bool {
         let _current = self.current();
         self.driver_canceller.reset();
-        !run.cancelled.load(Ordering::SeqCst)
+        !run.cancelled.load(Ordering::SeqCst) && !self.closed.load(Ordering::SeqCst)
     }
 
     fn end_run(&self) {
