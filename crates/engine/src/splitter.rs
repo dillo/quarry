@@ -1,7 +1,8 @@
 //! Splits a SQL script into statements, respecting quotes and comments.
 //!
 //! Known limit: a `;` inside a `CREATE TRIGGER ... BEGIN ... END` body ends
-//! the statement early. Quarry's content avoids trigger bodies.
+//! the statement early, and so does a `;` inside a `SQLite` `[bracketed]`
+//! identifier. Quarry's content avoids both.
 
 use std::ops::Range;
 

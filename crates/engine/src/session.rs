@@ -3,9 +3,21 @@
 //! The UI submits scripts with [`Session::run`] and reads [`RunEvent`]s from
 //! the returned [`RunHandle`] without ever blocking. Runs execute one at a
 //! time, in submission order. Dropping a handle stops its run. Dropping the
-//! session stops all remaining work: the executing run is interrupted, none
-//! of its later statements start, and queued runs fail with
-//! [`EngineError::Cancelled`].
+//! session stops runs: the current statement is interrupted, later statements
+//! do not start, and queued runs fail with [`EngineError::Cancelled`]. A
+//! schema read queued before the drop still completes.
+//!
+//! # Using a session from the UI
+//!
+//! - Read events until [`RunEvent::Done`], or drop the handle.
+//! - A reader that keeps a handle but stops reading stalls the session.
+//! - Treat `RecvError` (the channel closed without `Done`) as
+//!   [`EngineError::WorkerGone`]; it only happens if the worker thread
+//!   panicked.
+//! - [`RunEvent::Failed`] can arrive without a [`RunEvent::Started`], when a
+//!   queued run is cancelled.
+//! - `Started.range` is relative to the submitted script.
+//! - `Summary.elapsed` includes time spent waiting for a slow reader.
 //!
 //! A cancel affects only the run it belongs to; the lock makes check-and-set
 //! atomic with run transitions.
@@ -49,9 +61,10 @@ pub enum RunEvent {
     Rows(Vec<Row>),
     /// The current statement finished.
     Finished(Summary),
-    /// The current statement failed; later statements do not run.
+    /// The current statement failed; later statements do not run. It can
+    /// arrive without a [`RunEvent::Started`], when a queued run is cancelled.
     Failed(EngineError),
-    /// The run is over. Always the last event.
+    /// The last event of a run (unless the session thread panicked).
     Done,
 }
 
