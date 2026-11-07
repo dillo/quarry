@@ -99,11 +99,11 @@ pub struct Column { pub name: String, pub type_name: String }
 pub struct QueryResult { pub columns: Vec<Column>, pub rows: Vec<Vec<Value>>,
                          pub rows_affected: Option<u64>, pub elapsed: Duration }
 
-#[async_trait]
-pub trait Driver: Send + Sync {
-    async fn execute(&self, sql: &str, sink: RowSink) -> Result<ExecSummary, EngineError>;
-    fn cancel_handle(&self) -> CancelHandle;
-    fn introspector(&self) -> &dyn Introspector;
+/// Drivers are synchronous; a `Session` runs them on their own thread.
+pub trait Driver: Send {
+    fn execute(&mut self, sql: &str, sink: &mut dyn RowSink) -> Result<Summary, EngineError>;
+    fn schema(&mut self) -> Result<Schema, EngineError>;
+    fn canceller(&self) -> Canceller;
 }
 ```
 
@@ -111,6 +111,7 @@ pub trait Driver: Send + Sync {
 - `CancelHandle` cancels on the server: Postgres sends its cancel request, MySQL runs `KILL QUERY` and SQLite uses its interrupt.
 - Decimals are kept as exact strings and never rounded through a float.
 - `EngineError` is a typed `thiserror` enum. Every variant has a readable message for the user.
+- Drivers are synchronous and run on a `Session` thread; see ADR 0007.
 
 ## 4. UI and interaction design
 
