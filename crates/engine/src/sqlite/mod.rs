@@ -91,6 +91,12 @@ impl Driver for SqliteDriver {
 /// # Errors
 /// Returns [`EngineError::Open`] when the database cannot be opened.
 pub fn connect(target: &str) -> Result<Box<dyn Driver>, EngineError> {
+    if target.is_empty() {
+        return Err(EngineError::Open {
+            target: String::new(),
+            message: "no database path given".to_owned(),
+        });
+    }
     let driver = if target == ":memory:" {
         SqliteDriver::open_in_memory()?
     } else {

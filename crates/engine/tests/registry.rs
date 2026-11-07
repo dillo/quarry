@@ -49,3 +49,15 @@ fn rejects_unknown_or_malformed_urls() {
         );
     }
 }
+
+#[test]
+fn rejects_an_empty_sqlite_target() {
+    let error = DriverRegistry::builtin().connect("sqlite:").err();
+    assert_eq!(
+        error,
+        Some(EngineError::Open {
+            target: String::new(),
+            message: "no database path given".to_owned(),
+        })
+    );
+}
