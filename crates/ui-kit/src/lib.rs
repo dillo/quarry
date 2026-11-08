@@ -2,6 +2,7 @@
 
 pub mod appearance;
 pub mod color;
+pub mod component_theme;
 pub mod palette;
 pub mod tokens;
 pub mod transition;

@@ -4978,6 +4978,7 @@ name = "quarry-ui-kit"
 version = "0.0.0"
 dependencies = [
  "gpui-kit",
+ "serde_json",
 ]
 
 [[package]]
