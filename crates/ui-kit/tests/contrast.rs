@@ -80,3 +80,16 @@ fn white_on_the_accent_gradient_is_readable_for_button_labels() {
         }
     }
 }
+
+#[test]
+fn white_on_the_dark_chip_wash_over_the_accent_is_readable() {
+    for palette in [Palette::aurora(), Palette::dawn()] {
+        let on_accent = palette.hex(Role::OnAccent);
+        let wash = 0x0000_002e; // black at 18%
+        for stop in [Role::AccentStart, Role::AccentEnd] {
+            let chip = flatten(wash, palette.hex(stop));
+            let ratio = contrast(on_accent, chip);
+            assert!(ratio >= 3.0, "{stop:?}: {ratio:.2}");
+        }
+    }
+}

@@ -3,14 +3,15 @@
 use std::rc::Rc;
 
 use gpui_kit::{
-    App, Background, BoxShadow, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement,
-    ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, TestSupportExt,
-    Window, div, linear_color_stop, linear_gradient, point, px,
+    App, Background, BoxShadow, ClickEvent, Div, ElementId, Hsla, InteractiveElement, IntoElement,
+    ParentElement, RenderOnce, SharedString, Stateful, StatefulInteractiveElement, Styled,
+    TestSupportExt, Window, div, linear_color_stop, linear_gradient, point, px,
 };
 
 use super::{ClickHandler, kbd::kbd};
 use crate::{
     Aurora,
+    color::mix,
     palette::{Colors, Role},
     tokens::{radius, space, text},
 };
@@ -37,6 +38,8 @@ pub struct ButtonStyle {
     pub border: Option<Hsla>,
     /// Glow color, if any.
     pub glow: Option<Hsla>,
+    /// Fill while the pointer is over the button.
+    pub hover: Background,
 }
 
 impl ButtonVariant {
@@ -48,29 +51,42 @@ impl ButtonVariant {
                 text: colors.get(Role::OnAccent),
                 border: None,
                 glow: Some(colors.get(Role::AccentStart).opacity(0.45)),
+                hover: accent_hover(colors),
             },
             Self::Secondary => ButtonStyle {
                 background: Some(colors.get(Role::Hover).into()),
                 text: colors.get(Role::Text),
                 border: Some(colors.get(Role::Border)),
                 glow: None,
+                hover: colors.get(Role::Selection).into(),
             },
             Self::Ghost => ButtonStyle {
                 background: None,
                 text: colors.get(Role::TextSecondary),
                 border: None,
                 glow: None,
+                hover: colors.get(Role::Hover).into(),
             },
         }
     }
 }
 
-/// The horizontal violet-to-blue accent gradient.
+/// The diagonal violet-to-blue accent gradient.
 pub fn accent_gradient(colors: &Colors) -> Background {
     linear_gradient(
         135.,
         linear_color_stop(colors.get(Role::AccentStart), 0.),
         linear_color_stop(colors.get(Role::AccentEnd), 1.),
+    )
+}
+
+/// The accent gradient brightened toward the on-accent color, for hover.
+pub fn accent_hover(colors: &Colors) -> Background {
+    let lift = |role: Role| mix(colors.get(role), colors.get(Role::OnAccent), 0.12);
+    linear_gradient(
+        135.,
+        linear_color_stop(lift(Role::AccentStart), 0.),
+        linear_color_stop(lift(Role::AccentEnd), 1.),
     )
 }
 
@@ -125,7 +141,8 @@ impl RenderOnce for Button {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = Aurora::colors(cx);
         let style = self.variant.style(&colors);
-        let hover = colors.get(Role::Hover);
+        let hover = style.hover;
+        let primary = self.variant == ButtonVariant::Primary;
         let mut button = div()
             .id(self.id)
             .flex()
@@ -139,19 +156,20 @@ impl RenderOnce for Button {
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
             .child(self.label)
-            .children(self.shortcut.map(kbd));
+            .children(self.shortcut.map(|keys| {
+                let chip = kbd(keys);
+                if primary { chip.on_accent() } else { chip }
+            }));
         button = decorate(button, &style);
         if let Some(handler) = self.on_click {
+            // Calls through the shared `Rc` handler.
             button = button.on_click(move |event, window, cx| handler(event, window, cx));
         }
         button.test_support()
     }
 }
 
-fn decorate(
-    mut button: gpui_kit::Stateful<gpui_kit::Div>,
-    style: &ButtonStyle,
-) -> gpui_kit::Stateful<gpui_kit::Div> {
+fn decorate(mut button: Stateful<Div>, style: &ButtonStyle) -> Stateful<Div> {
     if let Some(background) = style.background {
         button = button.bg(background);
     }
@@ -178,6 +196,19 @@ fn glow_shadow(color: Hsla) -> BoxShadow {
 mod tests {
     use super::{ButtonVariant, accent_gradient};
     use crate::palette::{Palette, Role};
+
+    #[test]
+    fn each_variant_has_its_own_hover() {
+        let colors = Palette::aurora().colors();
+        let primary = ButtonVariant::Primary.style(&colors);
+        assert_ne!(Some(primary.hover), primary.background);
+        assert_ne!(primary.hover, colors.get(Role::Hover).into());
+        let secondary = ButtonVariant::Secondary.style(&colors);
+        assert_eq!(secondary.hover, colors.get(Role::Selection).into());
+        assert_ne!(Some(secondary.hover), secondary.background);
+        let ghost = ButtonVariant::Ghost.style(&colors);
+        assert_eq!(ghost.hover, colors.get(Role::Hover).into());
+    }
 
     #[test]
     fn primary_uses_the_accent_gradient_and_glows() {
