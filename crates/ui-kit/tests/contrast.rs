@@ -7,7 +7,8 @@
 
 use quarry_ui_kit::{
     Palette, Role,
-    color::{contrast, flatten},
+    color::{contrast, flatten, to_hex},
+    components::button::accent_hover_stops,
 };
 
 const BODY: [Role; 10] = [
@@ -71,25 +72,32 @@ fn dawn_text_is_readable_on_every_surface() {
     assert_eq!(failures(&palette, &QUIET, 3.0), Vec::<String>::new());
 }
 
+/// Every fill the Primary button can show: resting stops, then hover stops.
+fn primary_fills(palette: &Palette) -> Vec<u32> {
+    let hover = accent_hover_stops(&palette.colors()).map(to_hex);
+    let mut fills = vec![palette.hex(Role::AccentStart), palette.hex(Role::AccentEnd)];
+    fills.extend(hover);
+    fills
+}
+
 #[test]
-fn white_on_the_accent_gradient_is_readable_for_button_labels() {
+fn white_on_the_primary_fill_meets_the_large_text_minimum_when_resting_and_hovered() {
     for palette in [Palette::aurora(), Palette::dawn()] {
-        for stop in [Role::AccentStart, Role::AccentEnd] {
-            let ratio = contrast(palette.hex(Role::OnAccent), palette.hex(stop));
-            assert!(ratio >= 3.0, "{stop:?}: {ratio:.2}");
+        for fill in primary_fills(&palette) {
+            let ratio = contrast(palette.hex(Role::OnAccent), fill);
+            assert!(ratio >= 3.0, "#{fill:08x}: {ratio:.2}");
         }
     }
 }
 
 #[test]
-fn white_on_the_dark_chip_wash_over_the_accent_is_readable() {
+fn white_on_the_dark_chip_wash_over_the_primary_fill_is_readable() {
     for palette in [Palette::aurora(), Palette::dawn()] {
         let on_accent = palette.hex(Role::OnAccent);
         let wash = 0x0000_002e; // black at 18%
-        for stop in [Role::AccentStart, Role::AccentEnd] {
-            let chip = flatten(wash, palette.hex(stop));
-            let ratio = contrast(on_accent, chip);
-            assert!(ratio >= 3.0, "{stop:?}: {ratio:.2}");
+        for fill in primary_fills(&palette) {
+            let ratio = contrast(on_accent, flatten(wash, fill));
+            assert!(ratio >= 3.0, "#{fill:08x}: {ratio:.2}");
         }
     }
 }

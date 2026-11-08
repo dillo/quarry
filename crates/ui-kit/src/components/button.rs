@@ -3,18 +3,20 @@
 use std::rc::Rc;
 
 use gpui_kit::{
-    App, Background, BoxShadow, ClickEvent, Div, ElementId, Hsla, InteractiveElement, IntoElement,
-    ParentElement, RenderOnce, SharedString, Stateful, StatefulInteractiveElement, Styled,
-    TestSupportExt, Window, div, linear_color_stop, linear_gradient, point, px,
+    App, Background, BoxShadow, ClickEvent, Div, ElementId, FontWeight, Hsla, InteractiveElement,
+    IntoElement, ParentElement, RenderOnce, SharedString, Stateful, StatefulInteractiveElement,
+    Styled, TestSupportExt, Window, div, linear_color_stop, linear_gradient, point, px,
 };
 
 use super::{ClickHandler, kbd::kbd};
 use crate::{
     Aurora,
-    color::mix,
+    color::{hsla, mix},
     palette::{Colors, Role},
     tokens::{radius, space, text},
 };
+
+const BLACK: u32 = 0x0000_00ff;
 
 /// Visual weight of a button.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +42,10 @@ pub struct ButtonStyle {
     pub glow: Option<Hsla>,
     /// Fill while the pointer is over the button.
     pub hover: Background,
+    /// Label size in points.
+    pub size: f32,
+    /// Label weight.
+    pub weight: FontWeight,
 }
 
 impl ButtonVariant {
@@ -52,6 +58,9 @@ impl ButtonVariant {
                 border: None,
                 glow: Some(colors.get(Role::AccentStart).opacity(0.45)),
                 hover: accent_hover(colors),
+                // 14 pt semibold is WCAG large text, so 3:1 suffices (ADR 0008).
+                size: text::LARGE_LABEL,
+                weight: FontWeight::SEMIBOLD,
             },
             Self::Secondary => ButtonStyle {
                 background: Some(colors.get(Role::Hover).into()),
@@ -59,6 +68,8 @@ impl ButtonVariant {
                 border: Some(colors.get(Role::Border)),
                 glow: None,
                 hover: colors.get(Role::Selection).into(),
+                size: text::SMALL,
+                weight: FontWeight::NORMAL,
             },
             Self::Ghost => ButtonStyle {
                 background: None,
@@ -66,6 +77,8 @@ impl ButtonVariant {
                 border: None,
                 glow: None,
                 hover: colors.get(Role::Hover).into(),
+                size: text::SMALL,
+                weight: FontWeight::NORMAL,
             },
         }
     }
@@ -80,13 +93,23 @@ pub fn accent_gradient(colors: &Colors) -> Background {
     )
 }
 
-/// The accent gradient brightened toward the on-accent color, for hover.
+/// How far hover deepens each accent stop toward black (10%).
+pub const HOVER_DEEPEN: f32 = 0.10;
+
+/// The accent stops deepened toward black, for hover. Deepening keeps the
+/// white label above 3:1 (brightening it would not).
+pub fn accent_hover_stops(colors: &Colors) -> [Hsla; 2] {
+    [Role::AccentStart, Role::AccentEnd]
+        .map(|role| mix(colors.get(role), hsla(BLACK), HOVER_DEEPEN))
+}
+
+/// The accent gradient deepened toward black, for hover.
 pub fn accent_hover(colors: &Colors) -> Background {
-    let lift = |role: Role| mix(colors.get(role), colors.get(Role::OnAccent), 0.12);
+    let [start, end] = accent_hover_stops(colors);
     linear_gradient(
         135.,
-        linear_color_stop(lift(Role::AccentStart), 0.),
-        linear_color_stop(lift(Role::AccentEnd), 1.),
+        linear_color_stop(start, 0.),
+        linear_color_stop(end, 1.),
     )
 }
 
@@ -151,7 +174,8 @@ impl RenderOnce for Button {
             .px(px(space::MD))
             .py(px(space::XS + 1.))
             .rounded(px(radius::SM))
-            .text_size(px(text::SMALL))
+            .text_size(px(style.size))
+            .font_weight(style.weight)
             .text_color(style.text)
             .cursor_pointer()
             .hover(move |s| s.bg(hover))
@@ -194,7 +218,9 @@ fn glow_shadow(color: Hsla) -> BoxShadow {
 
 #[cfg(test)]
 mod tests {
-    use super::{ButtonVariant, accent_gradient};
+    use gpui_kit::FontWeight;
+
+    use super::{ButtonVariant, accent_gradient, accent_hover_stops};
     use crate::palette::{Palette, Role};
 
     #[test]
@@ -208,6 +234,28 @@ mod tests {
         assert_ne!(Some(secondary.hover), secondary.background);
         let ghost = ButtonVariant::Ghost.style(&colors);
         assert_eq!(ghost.hover, colors.get(Role::Hover).into());
+    }
+
+    #[test]
+    fn primary_hover_is_darker_than_the_resting_accent() {
+        for palette in [Palette::aurora(), Palette::dawn()] {
+            let colors = palette.colors();
+            let stops = accent_hover_stops(&colors);
+            for (hover, role) in stops.into_iter().zip([Role::AccentStart, Role::AccentEnd]) {
+                assert!(hover.l < colors.get(role).l, "{role:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn only_primary_is_large_semibold() {
+        let colors = Palette::aurora().colors();
+        let primary = ButtonVariant::Primary.style(&colors);
+        assert_eq!((primary.size, primary.weight), (14., FontWeight::SEMIBOLD));
+        for variant in [ButtonVariant::Secondary, ButtonVariant::Ghost] {
+            let style = variant.style(&colors);
+            assert_eq!((style.size, style.weight), (12., FontWeight::NORMAL));
+        }
     }
 
     #[test]

@@ -15,6 +15,8 @@ pub mod text {
     pub const CAPTION: f32 = 11.0;
     /// Sidebar items, tabs, status bar.
     pub const SMALL: f32 = 12.0;
+    /// The Primary button label: 14 pt semibold counts as WCAG large text.
+    pub const LARGE_LABEL: f32 = 14.0;
     /// Body text and the editor.
     pub const BODY: f32 = 13.0;
     /// Panel titles.

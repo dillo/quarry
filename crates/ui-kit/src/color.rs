@@ -32,6 +32,12 @@ pub fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
     .into()
 }
 
+/// A GPUI color back as `0xRRGGBBAA`.
+pub fn to_hex(color: Hsla) -> u32 {
+    let rgba = Rgba::from(color);
+    u32::from_be_bytes([rgba.r, rgba.g, rgba.b, rgba.a].map(to_byte))
+}
+
 /// WCAG 2.x contrast ratio of `foreground` drawn over the opaque `background`.
 pub fn contrast(foreground: u32, background: u32) -> f32 {
     let front = luminance(over(foreground, background));
@@ -79,10 +85,17 @@ fn linear(channel: f32) -> f32 {
 mod tests {
     use gpui_kit::Rgba;
 
-    use super::{contrast, css, flatten, hsla, mix};
+    use super::{contrast, css, flatten, hsla, mix, to_hex};
 
     fn close(a: f32, b: f32) -> bool {
         (a - b).abs() < 0.01
+    }
+
+    #[test]
+    fn to_hex_inverts_hsla() {
+        for value in [0x0000_0000, 0xffff_ffff, 0x8b6c_ffff, 0x1234_5678] {
+            assert_eq!(to_hex(hsla(value)), value);
+        }
     }
 
     #[test]
