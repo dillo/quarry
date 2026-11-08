@@ -43,7 +43,7 @@ quarry/
 │  ├─ app/          GPUI binary: window, workspace, views, actions, registries wiring
 │  ├─ ui-kit/       Aurora design system: tokens, themes, glass panel, button, tabs,
 │  │                badge, progress ring, status bar, theme cross-fade
-│  ├─ engine/       Driver/Introspector traits, Value/QueryResult model, drivers
+│  ├─ engine/       Driver trait, Value/Summary/RowSink model, drivers
 │  │                (sqlite, postgres, mysql), statement splitter + classifier
 │  ├─ challenges/   Track loader, sandbox manager, ChallengeKind, CheckRule pipeline,
 │  │                HintPolicy
@@ -73,7 +73,7 @@ New features are added through traits and registries, never by spreading `match`
 
 | Extension point | Trait / registry | Adding one touches |
 |---|---|---|
-| Database driver | `engine::Driver` + `Introspector`, `DriverRegistry` | New module + 1 registration line |
+| Database driver | `engine::Driver` (incl. `schema()`), `DriverRegistry` | New module + 1 registration line |
 | Challenge track | Folder in `content/tracks/` | 0 lines of code |
 | Challenge kind | `challenges::ChallengeKind` | New module + 1 line |
 | Answer-check rule | `challenges::CheckRule` (ordered pipeline) | New module + 1 line |
@@ -96,21 +96,31 @@ pub enum Value { Null, Bool(bool), Int(i64), Float(f64), Decimal(String),
 
 pub struct Column { pub name: String, pub type_name: String }
 
-pub struct QueryResult { pub columns: Vec<Column>, pub rows: Vec<Vec<Value>>,
-                         pub rows_affected: Option<u64>, pub elapsed: Duration }
+pub struct Summary { pub rows: u64, pub rows_affected: Option<u64>, pub elapsed: Duration }
 
-#[async_trait]
-pub trait Driver: Send + Sync {
-    async fn execute(&self, sql: &str, sink: RowSink) -> Result<ExecSummary, EngineError>;
-    fn cancel_handle(&self) -> CancelHandle;
-    fn introspector(&self) -> &dyn Introspector;
+/// Receives a statement's results as they are produced.
+pub trait RowSink {
+    fn columns(&mut self, columns: Vec<Column>);
+    fn rows(&mut self, batch: Vec<Vec<Value>>);
+}
+
+/// The in-memory `RowSink`.
+pub struct QueryResult { pub columns: Vec<Column>, pub rows: Vec<Vec<Value>> }
+
+/// Drivers are synchronous; a `Session` runs them on their own thread.
+pub trait Driver: Send {
+    fn execute(&mut self, sql: &str, sink: &mut dyn RowSink) -> Result<Summary, EngineError>;
+    fn schema(&mut self) -> Result<Schema, EngineError>;
+    fn canceller(&self) -> Canceller;
 }
 ```
 
 - Results **stream** in batches through `RowSink`, so the grid fills in as rows arrive.
-- `CancelHandle` cancels on the server: Postgres sends its cancel request, MySQL runs `KILL QUERY` and SQLite uses its interrupt.
+- `Canceller` (a shared flag) cancels a running statement. SQLite stops through its progress handler (ADR 0007). Postgres sends its cancel request and MySQL runs `KILL QUERY` (both Phase 3).
 - Decimals are kept as exact strings and never rounded through a float.
 - `EngineError` is a typed `thiserror` enum. Every variant has a readable message for the user.
+- Drivers are synchronous and run on a `Session` thread; see ADR 0007.
+- `Session` runs a `Driver` on its own thread and streams `RunEvent`s (`Started`, `Columns`, `Rows`, `Finished`, `Failed`, `Done`). See ADR 0007.
 
 ## 4. UI and interaction design
 
