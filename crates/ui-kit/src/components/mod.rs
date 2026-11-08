@@ -3,7 +3,11 @@
 pub mod badge;
 pub mod button;
 pub mod kbd;
+pub mod segmented;
+pub mod sidebar_item;
+pub mod status_bar;
 pub mod surface;
+pub mod tabs;
 
 use std::rc::Rc;
 
