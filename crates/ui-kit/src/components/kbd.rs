@@ -11,6 +11,9 @@ use crate::{
     tokens::{MONO_FONT, radius, text},
 };
 
+/// The dark wash (black at 18%) behind a chip on the accent gradient.
+pub const ON_ACCENT_CHIP_WASH: u32 = 0x0000_002e;
+
 /// A small monospace chip showing a shortcut. Colors are applied at render
 /// time from the current theme by [`Kbd`].
 pub fn kbd(keys: SharedString) -> Kbd {
@@ -53,7 +56,7 @@ fn chip_colors(on_accent: bool, colors: &Colors) -> (Hsla, Hsla, Hsla) {
     if on_accent {
         let white = colors.get(Role::OnAccent);
         // A dark wash deepens the accent, keeping white keys readable.
-        (white, hsla(0x0000_002e), white.opacity(0.28))
+        (white, hsla(ON_ACCENT_CHIP_WASH), white.opacity(0.28))
     } else {
         (
             colors.get(Role::TextSecondary),
@@ -74,7 +77,7 @@ fn chip(keys: SharedString) -> Div {
 
 #[cfg(test)]
 mod tests {
-    use super::chip_colors;
+    use super::{ON_ACCENT_CHIP_WASH, chip_colors};
     use crate::color::hsla;
     use crate::palette::{Palette, Role};
 
@@ -93,7 +96,7 @@ mod tests {
         let white = colors.get(Role::OnAccent);
         let (text, background, border) = chip_colors(true, &colors);
         assert_eq!(text, white);
-        assert_eq!(background, hsla(0x0000_002e));
+        assert_eq!(background, hsla(ON_ACCENT_CHIP_WASH));
         assert_eq!(border, white.opacity(0.28));
     }
 }

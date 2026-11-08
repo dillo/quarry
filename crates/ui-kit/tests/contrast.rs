@@ -8,7 +8,7 @@
 use quarry_ui_kit::{
     Palette, Role,
     color::{contrast, flatten, to_hex},
-    components::{badge::Tone, button::accent_hover_stops},
+    components::{badge::Tone, button::accent_hover_stops, kbd::ON_ACCENT_CHIP_WASH},
 };
 
 const BODY: [Role; 10] = [
@@ -95,7 +95,7 @@ fn white_on_the_dark_chip_wash_over_the_primary_fill_is_readable() {
     for palette in [Palette::aurora(), Palette::dawn()] {
         let on_accent = palette.hex(Role::OnAccent);
         for fill in primary_fills(&palette) {
-            let ratio = contrast(on_accent, flatten(0x0000_002e, fill));
+            let ratio = contrast(on_accent, flatten(ON_ACCENT_CHIP_WASH, fill));
             assert!(ratio >= 3.0, "#{fill:08x}: {ratio:.2}");
         }
     }
