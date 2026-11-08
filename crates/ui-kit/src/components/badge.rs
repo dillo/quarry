@@ -10,6 +10,9 @@ use crate::{
     tokens::{radius, text},
 };
 
+/// Opacity of the tone-colored wash behind a badge's text (15%).
+pub const BADGE_WASH: f32 = 0.15;
+
 /// A badge's color family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tone {
@@ -36,7 +39,7 @@ impl Tone {
             Self::Danger => colors.get(Role::Danger),
             Self::Neutral => colors.get(Role::TextSecondary),
         };
-        (ink.opacity(0.15), ink)
+        (ink.opacity(BADGE_WASH), ink)
     }
 }
 
@@ -72,7 +75,7 @@ impl RenderOnce for Badge {
 
 #[cfg(test)]
 mod tests {
-    use super::Tone;
+    use super::{BADGE_WASH, Tone};
     use crate::palette::{Palette, Role};
 
     #[test]
@@ -88,7 +91,7 @@ mod tests {
         for (tone, role) in cases {
             let (background, ink) = tone.colors(&colors);
             assert_eq!(ink, colors.get(role), "{tone:?}");
-            assert_eq!(background, colors.get(role).opacity(0.15), "{tone:?}");
+            assert_eq!(background, colors.get(role).opacity(BADGE_WASH), "{tone:?}");
         }
     }
 }

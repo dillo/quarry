@@ -8,7 +8,7 @@
 use quarry_ui_kit::{
     Palette, Role,
     color::{contrast, flatten, to_hex},
-    components::button::accent_hover_stops,
+    components::{badge::Tone, button::accent_hover_stops},
 };
 
 const BODY: [Role; 10] = [
@@ -94,10 +94,42 @@ fn white_on_the_primary_fill_meets_the_large_text_minimum_when_resting_and_hover
 fn white_on_the_dark_chip_wash_over_the_primary_fill_is_readable() {
     for palette in [Palette::aurora(), Palette::dawn()] {
         let on_accent = palette.hex(Role::OnAccent);
-        let wash = 0x0000_002e; // black at 18%
         for fill in primary_fills(&palette) {
-            let ratio = contrast(on_accent, flatten(wash, fill));
+            let ratio = contrast(on_accent, flatten(0x0000_002e, fill));
             assert!(ratio >= 3.0, "#{fill:08x}: {ratio:.2}");
         }
     }
+}
+
+const TONES: [Tone; 5] = [
+    Tone::Accent,
+    Tone::Success,
+    Tone::Warning,
+    Tone::Danger,
+    Tone::Neutral,
+];
+
+fn badge_failures(palette: &Palette) -> Vec<String> {
+    let colors = palette.colors();
+    let mut failed = Vec::new();
+    for surface in surfaces(palette) {
+        for tone in TONES {
+            let (wash, ink) = tone.colors(&colors);
+            let ratio = contrast(to_hex(ink), flatten(to_hex(wash), surface));
+            if ratio < 4.5 {
+                failed.push(format!("{tone:?} on #{surface:08x}: {ratio:.2}"));
+            }
+        }
+    }
+    failed
+}
+
+#[test]
+fn aurora_badges_are_readable_on_every_surface() {
+    assert_eq!(badge_failures(&Palette::aurora()), Vec::<String>::new());
+}
+
+#[test]
+fn dawn_badges_are_readable_on_every_surface() {
+    assert_eq!(badge_failures(&Palette::dawn()), Vec::<String>::new());
 }
