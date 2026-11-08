@@ -1,9 +1,11 @@
 //! A segmented control: one of a few options (e.g. Playground / Connections).
+//!
+//! Keyboard focus and navigation are added with the workspace in Phase 1C.
 
 use std::rc::Rc;
 
 use gpui_kit::{
-    App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
+    App, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, TestSupportExt, Window, div, px,
 };
 
@@ -75,6 +77,34 @@ impl RenderOnce for SegmentedControl {
     }
 }
 
+/// Resolved colors for a segment.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SegmentStyle {
+    /// Fill.
+    pub background: Hsla,
+    /// Label color.
+    pub text: Hsla,
+    /// Fill while hovered; `None` for the selected segment.
+    pub hover: Option<Hsla>,
+}
+
+/// The colors a segment uses when `selected` or not.
+pub fn segment_style(selected: bool, colors: &Colors) -> SegmentStyle {
+    if selected {
+        SegmentStyle {
+            background: colors.get(Role::Selection),
+            text: colors.get(Role::Text),
+            hover: None,
+        }
+    } else {
+        SegmentStyle {
+            background: gpui_kit::transparent_black(),
+            text: colors.get(Role::TextMuted),
+            hover: Some(colors.get(Role::Hover)),
+        }
+    }
+}
+
 fn segment(
     index: usize,
     label: SharedString,
@@ -82,26 +112,50 @@ fn segment(
     colors: &Colors,
     handler: Option<ChangeHandler>,
 ) -> impl IntoElement + use<> {
-    let (background, ink) = if selected {
-        (colors.get(Role::Selection), colors.get(Role::Text))
-    } else {
-        (gpui_kit::transparent_black(), colors.get(Role::TextMuted))
-    };
-    div()
+    let style = segment_style(selected, colors);
+    let mut segment = div()
         .id(("segment", index))
         .flex_1()
         .px(px(10.))
         .py(px(4.))
         .rounded(px(radius::SM))
         .text_size(px(text::CAPTION))
-        .bg(background)
-        .text_color(ink)
+        .bg(style.background)
+        .text_color(style.text)
         .cursor_pointer()
-        .child(label)
+        .child(label);
+    if let Some(hover) = style.hover {
+        segment = segment.hover(move |s| s.bg(hover));
+    }
+    segment
         .on_click(move |_, window, cx| {
             if let Some(handler) = &handler {
                 handler(index, window, cx);
             }
         })
         .test_support()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::segment_style;
+    use crate::palette::{Palette, Role};
+
+    #[test]
+    fn selected_segment_is_washed_and_does_not_hover() {
+        let colors = Palette::aurora().colors();
+        let style = segment_style(true, &colors);
+        assert_eq!(style.background, colors.get(Role::Selection));
+        assert_eq!(style.text, colors.get(Role::Text));
+        assert_eq!(style.hover, None);
+    }
+
+    #[test]
+    fn unselected_segment_is_flat_and_hovers() {
+        let colors = Palette::aurora().colors();
+        let style = segment_style(false, &colors);
+        assert_eq!(style.background, gpui_kit::transparent_black());
+        assert_eq!(style.text, colors.get(Role::TextMuted));
+        assert_eq!(style.hover, Some(colors.get(Role::Hover)));
+    }
 }
