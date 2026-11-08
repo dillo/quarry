@@ -46,8 +46,11 @@ multiple-versions = "deny"
 wildcards = "deny"
 skip = []
 # GPUI's own dependency tree carries many duplicate versions we cannot unify.
-# Duplicates anywhere else in the graph still fail.
-skip-tree = [{ crate = "gpui-kit", reason = "duplicates inside GPUI's tree are upstream's to resolve" }]
+# skip-tree hides every duplicate reachable from gpui-kit, including a second
+# copy of a crate Quarry also depends on directly (thiserror, serde_json), so
+# those collisions are NOT reported. Pinned to the version reviewed; an
+# upgrade stops matching and forces this to be revisited.
+skip-tree = [{ crate = "gpui-kit@0.9.0", reason = "duplicates inside GPUI's tree are upstream's to resolve" }]
 
 [sources]
 unknown-registry = "deny"

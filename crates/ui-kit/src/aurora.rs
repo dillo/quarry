@@ -48,16 +48,25 @@ impl Aurora {
     }
 
     /// The user's preference.
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn preference(cx: &App) -> Preference {
         cx.global::<Self>().preference
     }
 
     /// The appearance being shown (the target, during a cross-fade).
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn appearance(cx: &App) -> Appearance {
         cx.global::<Self>().appearance
     }
 
     /// The colors to draw right now.
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn colors(cx: &App) -> Colors {
         let aurora = cx.global::<Self>();
         aurora.transition.map_or_else(
@@ -67,6 +76,9 @@ impl Aurora {
     }
 
     /// Whether a cross-fade is running; views keep requesting frames while it is.
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn is_transitioning(cx: &App) -> bool {
         cx.global::<Self>()
             .transition
@@ -74,6 +86,9 @@ impl Aurora {
     }
 
     /// Changes the preference, cross-fading unless the system asks for reduced motion.
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn set_preference(preference: Preference, cx: &mut App) {
         let target = preference.resolve(cx.window_appearance().into());
         cx.global_mut::<Self>().preference = preference;
@@ -81,6 +96,9 @@ impl Aurora {
     }
 
     /// Re-reads the system appearance; call when macOS switches light/dark.
+    ///
+    /// # Panics
+    /// Panics if [`Aurora::install`] has not been called.
     pub fn system_appearance_changed(cx: &mut App) {
         let target = Self::preference(cx).resolve(cx.window_appearance().into());
         Self::show(target, cx);
