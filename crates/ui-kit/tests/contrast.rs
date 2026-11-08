@@ -1,7 +1,8 @@
 //! Every text role must stay readable on every surface, in both themes.
 //!
-//! Surfaces are each window-gradient stop on its own and with a glass panel
-//! composited over it. Body text needs WCAG AA (4.5:1); muted text, comments
+//! Surfaces are each window-gradient stop on its own, with panel or sidebar
+//! glass over it, and with the hover, selection and active-line washes over
+//! that glass. Body text needs WCAG AA (4.5:1); muted text, comments
 //! and line numbers need 3:1.
 
 use quarry_ui_kit::{
@@ -30,8 +31,15 @@ fn surfaces(palette: &Palette) -> Vec<u32> {
         Role::BackgroundEnd,
     ];
     let bare = stops.map(|stop| palette.hex(stop));
-    let glass = bare.map(|stop| flatten(palette.hex(Role::Panel), stop));
-    bare.into_iter().chain(glass).collect()
+    let mut all: Vec<u32> = bare.to_vec();
+    for glass in [Role::Panel, Role::Sidebar] {
+        let glazed = bare.map(|stop| flatten(palette.hex(glass), stop));
+        all.extend(glazed);
+        for wash in [Role::Hover, Role::Selection, Role::ActiveLine] {
+            all.extend(glazed.map(|base| flatten(palette.hex(wash), base)));
+        }
+    }
+    all
 }
 
 fn failures(palette: &Palette, roles: &[Role], minimum: f32) -> Vec<String> {

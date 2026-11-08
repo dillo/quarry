@@ -122,7 +122,7 @@ const AURORA: [(Role, u32); 26] = [
     (Role::SyntaxString, 0xfbbf_77ff),
     (Role::SyntaxNumber, 0xf9a8_d4ff),
     (Role::SyntaxComment, 0xe6e4_f080),
-    (Role::LineNumber, 0xe6e4_f066),
+    (Role::LineNumber, 0xe6e4_f071),
     (Role::ActiveLine, 0xffff_ff0a),
 ];
 
@@ -139,19 +139,19 @@ const DAWN: [(Role, u32); 26] = [
     (Role::TextMuted, 0x2420_3a99),
     (Role::AccentStart, 0x8b6c_ffff),
     (Role::AccentEnd, 0x5b8c_ffff),
-    (Role::AccentText, 0x6d4e_e8ff),
+    (Role::AccentText, 0x6749_dbff),
     (Role::OnAccent, 0xffff_ffff),
     (Role::Selection, 0x8b6c_ff2e),
     (Role::SelectionBorder, 0x8b6c_ff40),
-    (Role::Success, 0x0f76_6eff),
-    (Role::Warning, 0xa150_0aff),
-    (Role::Danger, 0xc241_0cff),
-    (Role::SyntaxKeyword, 0x6d4e_e8ff),
-    (Role::SyntaxFunction, 0x0f76_6eff),
-    (Role::SyntaxString, 0xa150_0aff),
-    (Role::SyntaxNumber, 0xbe2a_7eff),
+    (Role::Success, 0x0e70_69ff),
+    (Role::Warning, 0x9e4e_09ff),
+    (Role::Danger, 0xb33c_0bff),
+    (Role::SyntaxKeyword, 0x6749_dbff),
+    (Role::SyntaxFunction, 0x0e70_69ff),
+    (Role::SyntaxString, 0x9e4e_09ff),
+    (Role::SyntaxNumber, 0xb628_78ff),
     (Role::SyntaxComment, 0x6b65_85ff),
-    (Role::LineNumber, 0x2420_3a80),
+    (Role::LineNumber, 0x2420_3a82),
     (Role::ActiveLine, 0x8b6c_ff0f),
 ];
 
@@ -225,6 +225,7 @@ mod tests {
         for table in [AURORA, DAWN] {
             for (index, role) in Role::ALL.iter().enumerate() {
                 assert_eq!(table[index].0, *role, "table order must follow Role::ALL");
+                assert_eq!(role.index(), index);
             }
         }
     }
