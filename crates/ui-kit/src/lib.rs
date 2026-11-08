@@ -9,6 +9,7 @@ pub mod appearance;
 pub mod aurora;
 pub mod color;
 pub mod component_theme;
+pub mod components;
 pub mod palette;
 pub mod tokens;
 pub mod transition;
