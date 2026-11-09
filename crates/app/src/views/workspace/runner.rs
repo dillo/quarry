@@ -15,7 +15,7 @@ use super::{POLL, Workspace};
 use crate::{
     model::{
         drain::{Drained, drain},
-        run::RunModel,
+        run::{RunModel, end_if_closed},
         target,
     },
     shell::actions::{CancelRun, RunStatement},
@@ -90,7 +90,7 @@ impl Workspace {
     /// Applies one poll's events; returns whether the run goes on.
     fn receive(&mut self, drained: Drained<RunEvent>, cx: &mut Context<Self>) -> bool {
         let ended = drained.closed || drained.items.contains(&RunEvent::Done);
-        self.apply(drained.items, cx);
+        self.apply(end_if_closed(drained.items, drained.closed), cx);
         if ended {
             self.run_ended(cx);
         }
@@ -112,12 +112,9 @@ impl Workspace {
         });
     }
 
-    /// Settles a run that never said `Done`, releases its handle and
-    /// re-reads the schema, which the run may have changed.
+    /// Releases the finished run's handle and re-reads the schema, which
+    /// the run may have changed.
     fn run_ended(&mut self, cx: &mut Context<Self>) {
-        if self.run_model(cx).is_running() {
-            self.apply(vec![RunEvent::Done], cx);
-        }
         self.current = None;
         self.read_schema(cx);
     }

@@ -138,6 +138,16 @@ impl RunModel {
     }
 }
 
+/// A poll's events, made to end properly: a channel that closed without
+/// `Done` means the worker vanished, whatever phase the run had reached.
+pub fn end_if_closed(mut events: Vec<RunEvent>, closed: bool) -> Vec<RunEvent> {
+    if closed && !events.contains(&RunEvent::Done) {
+        events.push(RunEvent::Failed(EngineError::WorkerGone));
+        events.push(RunEvent::Done);
+    }
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
@@ -149,7 +159,7 @@ mod tests {
         value::Value,
     };
 
-    use super::{Phase, ROW_LIMIT, RunModel};
+    use super::{Phase, ROW_LIMIT, RunModel, end_if_closed};
 
     fn column(name: &str) -> Column {
         Column {
@@ -270,5 +280,31 @@ mod tests {
         let later = start + Duration::from_millis(1500);
         assert_eq!(model.elapsed(later), Duration::from_millis(1500));
         assert_eq!(RunModel::default().elapsed(later), Duration::ZERO);
+    }
+
+    #[test]
+    fn a_channel_closed_without_done_means_the_worker_is_gone() {
+        let gone = vec![
+            RunEvent::Finished(summary(1)),
+            RunEvent::Failed(EngineError::WorkerGone),
+            RunEvent::Done,
+        ];
+        assert_eq!(
+            end_if_closed(vec![RunEvent::Finished(summary(1))], true),
+            gone
+        );
+        let mut model = RunModel::started(Instant::now());
+        for event in end_if_closed(vec![RunEvent::Finished(summary(1))], true) {
+            model.apply(event);
+        }
+        assert_eq!(model.phase(), &Phase::Failed(EngineError::WorkerGone));
+    }
+
+    #[test]
+    fn open_or_properly_ended_channels_are_left_alone() {
+        let open = vec![RunEvent::Finished(summary(1))];
+        assert_eq!(end_if_closed(open.clone(), false), open);
+        let done = vec![RunEvent::Finished(summary(1)), RunEvent::Done];
+        assert_eq!(end_if_closed(done.clone(), true), done);
     }
 }
