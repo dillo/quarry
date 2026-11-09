@@ -214,6 +214,13 @@ fn command_two_returns_focus_to_the_editor(cx: &mut TestAppContext) {
         window.draw(cx).clear(cx);
         true
     });
+    cx.update(|window, cx| {
+        let editor = workspace.read(cx).editor().read(cx);
+        assert!(
+            !editor.focus_handle(cx).is_focused(window),
+            "cmd-1 left focus in the editor"
+        );
+    });
     cx.simulate_keystrokes("cmd-2");
     cx.update(|window, cx| {
         let editor = workspace.read(cx).editor().read(cx);
