@@ -5602,6 +5602,7 @@ dependencies = [
 name = "quarry"
 version = "0.0.0"
 dependencies = [
+ "async-channel",
  "quarry-engine",
 ]
 
