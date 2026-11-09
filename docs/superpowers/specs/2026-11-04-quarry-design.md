@@ -126,11 +126,12 @@ pub trait Driver: Send {
 
 ### 4.1 Visual language: Aurora
 
-- **Aurora (dark) is the default.** A deep indigo-to-teal gradient behind native frosted-glass panels (GPUI's blurred window background), with floating panels that have 10 px rounded corners and 1 px light inner borders.
+- **Aurora (dark) is the default.** A deep indigo-to-teal gradient behind native frosted-glass panels (GPUI's blurred window background; blur is progressive enhancement, opaque until verified, ADR 0008), with floating panels that have 10 px rounded corners and 1 px light inner borders.
 - **The accent** is a violet-to-blue gradient (`#8b6cff → #5b8cff`) with a soft glow. Success is teal (`#5eead4`), warnings amber (`#fbbf24`) and errors orange (`#fb923c`).
 - **Syntax colors:** keywords violet, functions teal, strings amber, numbers pink, comments dim italic.
 - **Aurora Dawn (light):** a pearly lavender-to-mint wash behind frosted white panels, with the same accents darkened enough to stay readable.
-- **Typography:** SF Pro for the interface and SF Mono for code and numbers. Numbers in the grid line up by digit.
+- **Typography:** SF Pro for the interface and Menlo for code and numbers (SF Mono isn't loadable by name; see ADR 0008). Numbers in the grid line up by digit.
+- **Colors:** Colors are defined once per theme by semantic role in `ui-kit` and checked for WCAG contrast in CI.
 - **Theme setting:** Dark / Light / Match System, in Settings and in View › Theme (⌘⇧T). Switching cross-fades over 250 ms.
 - **Motion:** brief and purposeful. Every animation respects the macOS *Reduce Motion* setting.
 
