@@ -18,7 +18,7 @@ use quarry_ui_kit::Aurora;
 use super::{editor, results::ResultsDelegate, schema::SchemaTree};
 use crate::{
     model::run::RunModel,
-    shell::actions::{CycleTheme, ToggleSidebar},
+    shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
 };
 
 /// How often the workspace polls the session: about 30 times a second.
@@ -36,6 +36,7 @@ pub struct Workspace {
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
     focus: FocusHandle,
+    sidebar_focus: FocusHandle,
     current: Option<RunHandle>,
     run: Option<Task<()>>,
     schema_read: Option<Task<()>>,
@@ -61,6 +62,7 @@ impl Workspace {
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
             focus: cx.focus_handle(),
+            sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             current: None,
             run: None,
             schema_read: None,
@@ -94,10 +96,33 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Focuses the sidebar's first table. A closed sidebar opens first, and
+    /// focus moves once it has been drawn and its rows are tab stops.
+    fn focus_sidebar(&mut self, _: &FocusSidebar, window: &mut Window, cx: &mut Context<Self>) {
+        let container = self.sidebar_focus.clone();
+        if self.sidebar_open {
+            focus_first_stop(&container, window, cx);
+            return;
+        }
+        self.sidebar_open = true;
+        window.on_next_frame(move |window, cx| focus_first_stop(&container, window, cx));
+        cx.notify();
+    }
+
+    fn focus_editor(&mut self, _: &FocusEditor, window: &mut Window, cx: &mut Context<Self>) {
+        self.editor.update(cx, |state, cx| state.focus(window, cx));
+    }
+
     fn cycle_theme(_: &mut Self, _: &CycleTheme, _: &mut Window, cx: &mut Context<Self>) {
         let next = Aurora::preference(cx).next();
         Aurora::set_preference(next, cx);
     }
+}
+
+/// Focuses the first keyboard stop inside `container`.
+fn focus_first_stop(container: &FocusHandle, window: &mut Window, cx: &mut App) {
+    window.focus(container, cx);
+    window.focus_next(cx);
 }
 
 impl Focusable for Workspace {

@@ -45,6 +45,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::run_statement))
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(Self::toggle_sidebar))
+            .on_action(cx.listener(Self::focus_sidebar))
+            .on_action(cx.listener(Self::focus_editor))
             .on_action(cx.listener(Self::cycle_theme))
             .size_full()
             .flex()
@@ -60,6 +62,8 @@ impl Workspace {
         let colors = Aurora::colors(cx);
         sidebar_surface(&colors)
             .id("sidebar")
+            .track_focus(&self.sidebar_focus)
+            .tab_group()
             .w(px(SIDEBAR_WIDTH))
             .h_full()
             .pt(px(chrome::TITLEBAR_HEIGHT))

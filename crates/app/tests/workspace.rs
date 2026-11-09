@@ -3,7 +3,10 @@
 
 use std::time::Duration;
 
-use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
+use gpui_kit::{
+    App, Entity, Focusable, TestAppContext, VisualTestContext, Window,
+    test::{TestEventExt, TestWindowExt},
+};
 use quarry::{
     model::run::Phase,
     sample,
@@ -182,4 +185,38 @@ fn command_shift_t_cycles_the_theme(cx: &mut TestAppContext) {
     cx.update(|_, cx| assert_eq!(Aurora::preference(cx), Preference::Light));
     cx.simulate_keystrokes("cmd-shift-t");
     cx.update(|_, cx| assert_eq!(Aurora::preference(cx), Preference::System));
+}
+
+#[gpui_kit::test]
+fn command_one_focuses_the_first_table_and_return_expands_it(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx);
+    settle(cx, |window, cx| {
+        window.draw(cx).clear(cx);
+        window.try_find(table_row_id("astronauts")).is_some()
+    });
+    cx.simulate_keystrokes("cmd-1");
+    cx.update(|window, cx| {
+        window.draw(cx).clear(cx);
+        window.key_down("enter", false, cx);
+        window.key_up("enter", cx);
+    });
+    cx.update(|_, cx| {
+        let tree = workspace.read(cx).schema().read(cx);
+        assert!(tree.expanded().contains("astronauts"));
+    });
+}
+
+#[gpui_kit::test]
+fn command_two_returns_focus_to_the_editor(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx);
+    cx.simulate_keystrokes("cmd-1");
+    settle(cx, |window, cx| {
+        window.draw(cx).clear(cx);
+        true
+    });
+    cx.simulate_keystrokes("cmd-2");
+    cx.update(|window, cx| {
+        let editor = workspace.read(cx).editor().read(cx);
+        assert!(editor.focus_handle(cx).is_focused(window));
+    });
 }

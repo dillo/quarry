@@ -14,6 +14,10 @@ actions!(
         CancelRun,
         /// Shows or hides the sidebar.
         ToggleSidebar,
+        /// Moves keyboard focus to the sidebar's first table.
+        FocusSidebar,
+        /// Moves keyboard focus to the editor.
+        FocusEditor,
         /// Cycles the theme: Dark, Light, System.
         CycleTheme,
         /// Quits Quarry.
@@ -36,6 +40,8 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE)),
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE_EDITOR)),
         KeyBinding::new("cmd-\\", ToggleSidebar, None),
+        KeyBinding::new("cmd-1", FocusSidebar, None),
+        KeyBinding::new("cmd-2", FocusEditor, None),
         KeyBinding::new("cmd-shift-t", CycleTheme, None),
         KeyBinding::new("cmd-q", Quit, None),
     ]
@@ -51,6 +57,8 @@ pub fn menus() -> Vec<Menu> {
         ]),
         Menu::new("View").items([
             MenuItem::action("Toggle Sidebar", ToggleSidebar),
+            MenuItem::action("Focus Sidebar", FocusSidebar),
+            MenuItem::action("Focus Editor", FocusEditor),
             MenuItem::action("Cycle Theme", CycleTheme),
         ]),
     ]
