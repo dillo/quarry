@@ -3684,6 +3684,7 @@ index 1baa779..15a6ad2 100644
 +    cargo run -p quarry   # open Quarry on the sample database
  
  See [CONTRIBUTING.md](CONTRIBUTING.md) for the engineering standards.
+ 
 ```
 
 Apply this change to `docs/superpowers/specs/2026-11-04-quarry-design.md` (`git apply`, or edit by hand):
@@ -3709,6 +3710,7 @@ index e530882..b47e7f3 100644
 +**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges`, `store` and the `app` view models (`crates/app/src/model`, ADR 0009). PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
  
  ### 7.4 Linting and supply chain
+ 
 ```
 
 
