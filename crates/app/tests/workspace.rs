@@ -152,6 +152,22 @@ fn command_period_cancels_a_long_query(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn running_again_during_a_run_replaces_it(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx);
+    write(
+        &workspace,
+        cx,
+        "SELECT count(*) FROM telemetry a, telemetry b",
+    );
+    cx.simulate_keystrokes("cmd-enter");
+    settle(cx, |_, cx| workspace.read(cx).run_model(cx).is_running());
+    write(&workspace, cx, "SELECT 1");
+    run(&workspace, cx);
+    assert!(matches!(phase(&workspace, cx), Phase::Finished(_)));
+    cx.update(|_, cx| assert_eq!(workspace.read(cx).run_model(cx).rows().len(), 1));
+}
+
+#[gpui_kit::test]
 fn creating_a_table_adds_it_to_the_schema_tree(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx);
     write(&workspace, cx, "CREATE TABLE notes (body TEXT)");
