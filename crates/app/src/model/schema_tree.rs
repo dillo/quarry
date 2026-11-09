@@ -48,7 +48,10 @@ pub fn toggle(expanded: &mut BTreeSet<String>, name: &str) {
 fn table_row(table: &Table, expanded: bool) -> TreeRow {
     let detail = match table.kind {
         TableKind::View => "view".to_owned(),
-        TableKind::Table => table.columns.len().to_string(),
+        TableKind::Table => match table.columns.len() {
+            1 => "1 col".to_owned(),
+            n => format!("{n} cols"),
+        },
     };
     TreeRow::Table {
         name: table.name.clone(),
@@ -99,6 +102,11 @@ mod tests {
                     columns: vec![column("id", "INTEGER", true), column("name", "TEXT", false)],
                 },
                 Table {
+                    name: "notes".to_owned(),
+                    kind: TableKind::Table,
+                    columns: vec![column("body", "TEXT", false)],
+                },
+                Table {
                     name: "roster".to_owned(),
                     kind: TableKind::View,
                     columns: vec![column("who", "", false)],
@@ -127,7 +135,8 @@ mod tests {
         assert_eq!(
             rows(&schema(), &BTreeSet::new()),
             [
-                table("missions", "2", false),
+                table("missions", "2 cols", false),
+                table("notes", "1 col", false),
                 table("roster", "view", false)
             ]
         );
@@ -139,9 +148,10 @@ mod tests {
         assert_eq!(
             rows(&schema(), &expanded),
             [
-                table("missions", "2", true),
+                table("missions", "2 cols", true),
                 col("id", "INTEGER · PK"),
                 col("name", "TEXT"),
+                table("notes", "1 col", false),
                 table("roster", "view", true),
                 col("who", "any"),
             ]
