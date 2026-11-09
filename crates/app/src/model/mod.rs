@@ -4,5 +4,8 @@
 //! mutation-tested like the core crates.
 
 pub mod drain;
+pub mod format;
 pub mod run;
+pub mod schema_tree;
+pub mod status;
 pub mod target;
