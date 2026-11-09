@@ -1,3 +1,4 @@
-//! Application start-up: actions, key bindings and the menu bar.
+//! Application start-up: actions, the menu bar and the main window.
 
 pub mod actions;
+pub mod window;
