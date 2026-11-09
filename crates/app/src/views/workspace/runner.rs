@@ -15,7 +15,7 @@ use super::{POLL, Workspace};
 use crate::{
     model::{
         drain::{Drained, drain},
-        run::{RunModel, end_if_closed},
+        run::RunModel,
         target,
     },
     shell::actions::{CancelRun, RunStatement},
@@ -89,8 +89,10 @@ impl Workspace {
 
     /// Applies one poll's events; returns whether the run goes on.
     fn receive(&mut self, drained: Drained<RunEvent>, cx: &mut Context<Self>) -> bool {
-        let ended = drained.closed || drained.items.contains(&RunEvent::Done);
-        self.apply(end_if_closed(drained.items, drained.closed), cx);
+        let done = drained.items.contains(&RunEvent::Done);
+        let vanished = drained.closed && !done;
+        let ended = drained.closed || done;
+        self.apply(drained.items, vanished, cx);
         if ended {
             self.run_ended(cx);
         }
@@ -98,12 +100,17 @@ impl Workspace {
         !ended
     }
 
-    fn apply(&mut self, events: Vec<RunEvent>, cx: &mut Context<Self>) {
+    /// Folds the events in; a channel that closed without `Done` ends the run
+    /// as a vanished worker, unless an earlier event already failed it.
+    fn apply(&mut self, events: Vec<RunEvent>, vanished: bool, cx: &mut Context<Self>) {
         self.results.update(cx, |table, cx| {
             let delegate = table.delegate_mut();
             let mut reshaped = false;
             for event in events {
                 reshaped |= delegate.apply(event);
+            }
+            if vanished {
+                delegate.end_closed();
             }
             if reshaped {
                 table.refresh(cx);

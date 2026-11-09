@@ -40,6 +40,11 @@ impl ResultsDelegate {
         self.columns.clear();
     }
 
+    /// The channel closed without `Done`; see [`RunModel::end_closed`].
+    pub fn end_closed(&mut self) {
+        self.model.end_closed();
+    }
+
     /// Folds `event` in; returns whether the table's columns changed.
     pub fn apply(&mut self, event: RunEvent) -> bool {
         let reshapes = matches!(event, RunEvent::Started { .. } | RunEvent::Columns(_));

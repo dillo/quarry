@@ -130,22 +130,20 @@ impl RunModel {
         self.rows.extend(batch.into_iter().take(room));
     }
 
+    /// The channel closed without `Done`: the worker vanished.
+    /// A failure already recorded is kept; anything else becomes `WorkerGone`.
+    pub fn end_closed(&mut self) {
+        if !matches!(self.phase, Phase::Failed(_)) {
+            self.phase = Phase::Failed(EngineError::WorkerGone);
+        }
+    }
+
     /// `Done` without `Finished` or `Failed` means the worker vanished.
     fn finish(&mut self) {
         if self.phase == Phase::Running {
             self.phase = Phase::Failed(EngineError::WorkerGone);
         }
     }
-}
-
-/// A poll's events, made to end properly: a channel that closed without
-/// `Done` means the worker vanished, whatever phase the run had reached.
-pub fn end_if_closed(mut events: Vec<RunEvent>, closed: bool) -> Vec<RunEvent> {
-    if closed && !events.contains(&RunEvent::Done) {
-        events.push(RunEvent::Failed(EngineError::WorkerGone));
-        events.push(RunEvent::Done);
-    }
-    events
 }
 
 #[cfg(test)]
@@ -159,7 +157,7 @@ mod tests {
         value::Value,
     };
 
-    use super::{Phase, ROW_LIMIT, RunModel, end_if_closed};
+    use super::{Phase, ROW_LIMIT, RunModel};
 
     fn column(name: &str) -> Column {
         Column {
@@ -283,28 +281,25 @@ mod tests {
     }
 
     #[test]
-    fn a_channel_closed_without_done_means_the_worker_is_gone() {
-        let gone = vec![
-            RunEvent::Finished(summary(1)),
-            RunEvent::Failed(EngineError::WorkerGone),
-            RunEvent::Done,
-        ];
-        assert_eq!(
-            end_if_closed(vec![RunEvent::Finished(summary(1))], true),
-            gone
-        );
+    fn a_channel_closed_after_finishing_means_the_worker_is_gone() {
         let mut model = RunModel::started(Instant::now());
-        for event in end_if_closed(vec![RunEvent::Finished(summary(1))], true) {
-            model.apply(event);
-        }
+        model.apply(started(0));
+        model.apply(RunEvent::Finished(summary(1)));
+        model.end_closed();
         assert_eq!(model.phase(), &Phase::Failed(EngineError::WorkerGone));
     }
 
     #[test]
-    fn open_or_properly_ended_channels_are_left_alone() {
-        let open = vec![RunEvent::Finished(summary(1))];
-        assert_eq!(end_if_closed(open.clone(), false), open);
-        let done = vec![RunEvent::Finished(summary(1)), RunEvent::Done];
-        assert_eq!(end_if_closed(done.clone(), true), done);
+    fn a_channel_closed_after_a_failure_keeps_the_real_error() {
+        let mut model = RunModel::started(Instant::now());
+        model.apply(started(0));
+        model.apply(RunEvent::Failed(EngineError::Sql(
+            "no such table".to_owned(),
+        )));
+        model.end_closed();
+        assert_eq!(
+            model.phase(),
+            &Phase::Failed(EngineError::Sql("no such table".to_owned()))
+        );
     }
 }
