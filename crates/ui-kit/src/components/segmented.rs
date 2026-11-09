@@ -1,6 +1,6 @@
 //! A segmented control: one of a few options (e.g. Playground / Connections).
 //!
-//! Keyboard focus and navigation are added with the workspace in Phase 1C.
+//! With a change handler, each segment is a keyboard stop (see [`keyboard_focusable`]).
 
 use std::rc::Rc;
 
@@ -9,6 +9,7 @@ use gpui_kit::{
     StatefulInteractiveElement, Styled, TestSupportExt, Window, div, px,
 };
 
+use super::keyboard_focusable;
 use crate::{
     Aurora,
     palette::{Colors, Role},
@@ -119,6 +120,8 @@ fn segment(
         .px(px(10.))
         .py(px(4.))
         .rounded(px(radius::SM))
+        .border_1()
+        .border_color(gpui_kit::transparent_black())
         .text_size(px(text::CAPTION))
         .bg(style.background)
         .text_color(style.text)
@@ -127,13 +130,11 @@ fn segment(
     if let Some(hover) = style.hover {
         segment = segment.hover(move |s| s.bg(hover));
     }
-    segment
-        .on_click(move |_, window, cx| {
-            if let Some(handler) = &handler {
-                handler(index, window, cx);
-            }
-        })
-        .test_support()
+    if let Some(handler) = handler {
+        segment = keyboard_focusable(segment, colors)
+            .on_click(move |_, window, cx| handler(index, window, cx));
+    }
+    segment.test_support()
 }
 
 #[cfg(test)]

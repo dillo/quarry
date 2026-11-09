@@ -133,3 +133,13 @@ fn aurora_badges_are_readable_on_every_surface() {
 fn dawn_badges_are_readable_on_every_surface() {
     assert_eq!(badge_failures(&Palette::dawn()), Vec::<String>::new());
 }
+
+#[test]
+fn the_focus_ring_stands_out_on_every_surface() {
+    for palette in [Palette::aurora(), Palette::dawn()] {
+        assert_eq!(
+            failures(&palette, &[Role::FocusRing], 3.0),
+            Vec::<String>::new()
+        );
+    }
+}

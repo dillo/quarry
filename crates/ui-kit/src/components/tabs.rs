@@ -1,6 +1,6 @@
 //! Editor tabs.
 //!
-//! Keyboard focus and navigation are added with the workspace in Phase 1C.
+//! A tab with a click handler is a keyboard stop (see [`keyboard_focusable`]).
 
 use std::rc::Rc;
 
@@ -9,7 +9,7 @@ use gpui_kit::{
     RenderOnce, SharedString, StatefulInteractiveElement, Styled, TestSupportExt, Window, div, px,
 };
 
-use super::ClickHandler;
+use super::{ClickHandler, keyboard_focusable};
 use crate::{
     Aurora,
     palette::{Colors, Role},
@@ -91,6 +91,8 @@ impl RenderOnce for Tab {
             .px(px(space::MD + 2.))
             .py(px(space::SM - 1.))
             .rounded_t(px(radius::SM + 1.))
+            .border_1()
+            .border_color(gpui_kit::transparent_black())
             .text_size(px(text::SMALL))
             .bg(style.background)
             .text_color(style.text)
@@ -100,7 +102,8 @@ impl RenderOnce for Tab {
             tab = tab.hover(move |s| s.bg(hover));
         }
         if let Some(handler) = self.on_click {
-            tab = tab.on_click(move |event, window, cx| handler(event, window, cx));
+            tab = keyboard_focusable(tab, &colors)
+                .on_click(move |event, window, cx| handler(event, window, cx));
         }
         tab.test_support()
     }

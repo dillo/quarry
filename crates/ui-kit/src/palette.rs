@@ -59,11 +59,13 @@ pub enum Role {
     LineNumber,
     /// Editor current-line wash.
     ActiveLine,
+    /// The keyboard focus ring (WCAG non-text contrast, 3:1).
+    FocusRing,
 }
 
 impl Role {
     /// Every role, in declaration order.
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 27] = [
         Self::BackgroundStart,
         Self::BackgroundMiddle,
         Self::BackgroundEnd,
@@ -90,6 +92,7 @@ impl Role {
         Self::SyntaxComment,
         Self::LineNumber,
         Self::ActiveLine,
+        Self::FocusRing,
     ];
 
     fn index(self) -> usize {
@@ -97,7 +100,7 @@ impl Role {
     }
 }
 
-const AURORA: [(Role, u32); 26] = [
+const AURORA: [(Role, u32); 27] = [
     (Role::BackgroundStart, 0x1b15_30ff),
     (Role::BackgroundMiddle, 0x0e14_24ff),
     (Role::BackgroundEnd, 0x0b1b_22ff),
@@ -124,9 +127,10 @@ const AURORA: [(Role, u32); 26] = [
     (Role::SyntaxComment, 0xe6e4_f080),
     (Role::LineNumber, 0xe6e4_f071),
     (Role::ActiveLine, 0xffff_ff0a),
+    (Role::FocusRing, 0xcbb8_ffff),
 ];
 
-const DAWN: [(Role, u32); 26] = [
+const DAWN: [(Role, u32); 27] = [
     (Role::BackgroundStart, 0xf3ee_ffff),
     (Role::BackgroundMiddle, 0xeef3_ffff),
     (Role::BackgroundEnd, 0xe9f8_f6ff),
@@ -153,6 +157,7 @@ const DAWN: [(Role, u32); 26] = [
     (Role::SyntaxComment, 0x6b65_85ff),
     (Role::LineNumber, 0x2420_3a82),
     (Role::ActiveLine, 0x8b6c_ff0f),
+    (Role::FocusRing, 0x593f_bcff),
 ];
 
 /// A theme's colors as `0xRRGGBBAA` values, one per [`Role`].

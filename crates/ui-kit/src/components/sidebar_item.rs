@@ -1,6 +1,6 @@
 //! A sidebar row: label, optional trailing text, selectable.
 //!
-//! Keyboard focus and navigation are added with the workspace in Phase 1C.
+//! A row with a click handler is a keyboard stop (see [`keyboard_focusable`]).
 
 use std::rc::Rc;
 
@@ -9,7 +9,7 @@ use gpui_kit::{
     SharedString, StatefulInteractiveElement, Styled, TestSupportExt, Window, div, px,
 };
 
-use super::ClickHandler;
+use super::{ClickHandler, keyboard_focusable};
 use crate::{
     Aurora,
     palette::{Colors, Role},
@@ -103,6 +103,8 @@ impl RenderOnce for SidebarItem {
             .px(px(space::SM))
             .py(px(5.))
             .rounded(px(radius::SM))
+            .border_1()
+            .border_color(gpui_kit::transparent_black())
             .text_size(px(text::SMALL))
             .text_color(colors.get(Role::Text))
             .cursor_pointer()
@@ -115,13 +117,14 @@ impl RenderOnce for SidebarItem {
             row = row.bg(background);
         }
         if let Some(border) = style.border {
-            row = row.border_1().border_color(border);
+            row = row.border_color(border);
         }
         if let Some(hover) = style.hover {
             row = row.hover(move |s| s.bg(hover));
         }
         if let Some(handler) = self.on_click {
-            row = row.on_click(move |event, window, cx| handler(event, window, cx));
+            row = keyboard_focusable(row, &colors)
+                .on_click(move |event, window, cx| handler(event, window, cx));
         }
         row.test_support()
     }
