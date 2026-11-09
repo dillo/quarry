@@ -304,7 +304,7 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 | `engine`, `challenges`, `store` | ≥ 95% | ≥ 90% |
 | `ui-kit`, `app` | ≥ 80% | ≥ 70% |
 
-**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges`, `store` and the `app` view models (`crates/app/src/model`, ADR 0009). PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
+**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges`, `store` and the `app` view models and sample database (`crates/app/src/model` and `crates/app/src/sample`, ADR 0009). PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
 
 ### 7.4 Linting and supply chain
 

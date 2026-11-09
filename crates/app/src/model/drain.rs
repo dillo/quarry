@@ -1,7 +1,7 @@
 //! Takes everything waiting on a channel without blocking or awaiting.
 //!
-//! The UI polls the session's channels once a frame instead of awaiting
-//! them: a waker fired from the session thread would wake GPUI's executor
+//! The UI polls the session's channels every `POLL` (33 ms) instead of
+//! awaiting them: a waker fired from the session thread would wake GPUI's executor
 //! from outside, and polling also batches many row events into one redraw.
 
 use async_channel::{Receiver, TryRecvError};

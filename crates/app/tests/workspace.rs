@@ -85,7 +85,11 @@ fn the_editor_never_has_a_completion_provider(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx);
     cx.update(|_, cx| {
         let editor = workspace.read(cx).editor().read(cx);
-        assert!(editor.lsp().completion_provider.is_none());
+        let lsp = editor.lsp();
+        assert!(lsp.completion_provider.is_none());
+        assert!(lsp.hover_provider.is_none());
+        assert!(lsp.definition_provider.is_none());
+        assert!(lsp.code_action_providers.is_empty());
     });
 }
 
