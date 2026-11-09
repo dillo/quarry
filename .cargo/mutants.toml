@@ -1,0 +1,11 @@
+# cargo-mutants settings (`just mutants`).
+#
+# The app's GPUI views and start-up code render and wire things; headless
+# tests cover them, but most mutants there change only pixels. Its view
+# models (`crates/app/src/model`, `crates/app/src/sample`) are mutation-tested
+# like the core crates (ADR 0009).
+exclude_globs = [
+    "crates/app/src/views/**",
+    "crates/app/src/shell/**",
+    "crates/app/src/main.rs",
+]

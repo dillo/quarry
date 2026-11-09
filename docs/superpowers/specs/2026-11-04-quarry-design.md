@@ -145,7 +145,7 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
 
 **Workspace (three columns)**
 
-1. **Sidebar** (frosted glass, toggled with ⌘\\)
+1. **Sidebar** (frosted glass, toggled with ⌘\\; ⌘1 focuses it and ⌘2 returns to the editor)
    - A Playground/Connections switch.
    - Tracks, each with a progress ring.
    - The schema tree: tables with row counts, and columns with their types. Clicking a table opens it in a browse tab. Dragging a name into the editor inserts it as text, which is a manual action and not autocomplete.
@@ -304,7 +304,7 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 | `engine`, `challenges`, `store` | ≥ 95% | ≥ 90% |
 | `ui-kit`, `app` | ≥ 80% | ≥ 70% |
 
-**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges` and `store`. PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
+**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges`, `store` and the `app` view models and sample database (`crates/app/src/model` and `crates/app/src/sample`, ADR 0009). PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
 
 ### 7.4 Linting and supply chain
 

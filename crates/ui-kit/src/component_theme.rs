@@ -58,7 +58,7 @@ fn colors(p: &Palette) -> Value {
         "accent.foreground": c(Role::Text),
         "primary.background": c(Role::AccentStart),
         "primary.foreground": c(Role::OnAccent),
-        "ring": c(Role::AccentStart),
+        "ring": c(Role::FocusRing),
         "caret": c(Role::AccentText),
         "selection.background": c(Role::Selection),
         "list.active.background": c(Role::Selection),

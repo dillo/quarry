@@ -30,6 +30,16 @@ impl Preference {
             Self::System => system,
         }
     }
+
+    /// The next setting in the View › Theme cycle: Dark, Light, System.
+    #[must_use]
+    pub fn next(self) -> Self {
+        match self {
+            Self::Dark => Self::Light,
+            Self::Light => Self::System,
+            Self::System => Self::Dark,
+        }
+    }
 }
 
 impl From<gpui_kit::WindowAppearance> for Appearance {
@@ -50,6 +60,13 @@ mod tests {
     use gpui_kit::WindowAppearance;
 
     use super::{Appearance, Preference};
+
+    #[test]
+    fn the_theme_cycle_visits_every_setting() {
+        assert_eq!(Preference::Dark.next(), Preference::Light);
+        assert_eq!(Preference::Light.next(), Preference::System);
+        assert_eq!(Preference::System.next(), Preference::Dark);
+    }
 
     #[test]
     fn fixed_preferences_ignore_the_system() {

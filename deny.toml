@@ -44,6 +44,8 @@ ignore = true
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# Workspace crates depend on each other by path; none is published.
+allow-wildcard-paths = true
 skip = []
 # GPUI's own dependency tree carries many duplicate versions we cannot unify.
 # skip-tree hides every duplicate reachable from gpui-kit, including a second
