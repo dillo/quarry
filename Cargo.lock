@@ -5603,7 +5603,9 @@ name = "quarry"
 version = "0.0.0"
 dependencies = [
  "async-channel",
+ "gpui-kit",
  "quarry-engine",
+ "quarry-ui-kit",
 ]
 
 [[package]]

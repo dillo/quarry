@@ -1,0 +1,64 @@
+//! Every command, its key binding and its menu.
+//!
+//! Adding a command means declaring it in `actions!`, adding one row to
+//! [`key_bindings`] and one menu item to [`menus`].
+
+use gpui_kit::{App, KeyBinding, Menu, MenuItem, actions};
+
+actions!(
+    quarry,
+    [
+        /// Runs the selection, or the statement under the cursor.
+        RunStatement,
+        /// Cancels the running query.
+        CancelRun,
+        /// Shows or hides the sidebar.
+        ToggleSidebar,
+        /// Cycles the theme: Dark, Light, System.
+        CycleTheme,
+        /// Quits Quarry.
+        Quit,
+    ]
+);
+
+/// The key context of the workspace's root element.
+pub const WORKSPACE: &str = "Workspace";
+
+/// The editor's own key context, inside the workspace. Bindings here win
+/// over the editor's built-in ⌘↵ (newline) and ⌘. (code actions).
+pub const WORKSPACE_EDITOR: &str = "Workspace > Input";
+
+/// Every key binding Quarry adds.
+pub fn key_bindings() -> Vec<KeyBinding> {
+    vec![
+        KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE)),
+        KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE_EDITOR)),
+        KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE)),
+        KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE_EDITOR)),
+        KeyBinding::new("cmd-\\", ToggleSidebar, None),
+        KeyBinding::new("cmd-shift-t", CycleTheme, None),
+        KeyBinding::new("cmd-q", Quit, None),
+    ]
+}
+
+/// The macOS menu bar.
+pub fn menus() -> Vec<Menu> {
+    vec![
+        Menu::new("Quarry").items([MenuItem::action("Quit Quarry", Quit)]),
+        Menu::new("Query").items([
+            MenuItem::action("Run Statement", RunStatement),
+            MenuItem::action("Cancel", CancelRun),
+        ]),
+        Menu::new("View").items([
+            MenuItem::action("Toggle Sidebar", ToggleSidebar),
+            MenuItem::action("Cycle Theme", CycleTheme),
+        ]),
+    ]
+}
+
+/// Registers the bindings, the menu bar and the app-wide actions.
+pub fn install(cx: &mut App) {
+    cx.bind_keys(key_bindings());
+    cx.set_menus(menus());
+    cx.on_action(|_: &Quit, cx| cx.quit());
+}
