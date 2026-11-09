@@ -90,6 +90,14 @@ fn the_editor_never_has_a_completion_provider(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn result_columns_cannot_be_dragged_out_of_order(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx);
+    write(&workspace, cx, "SELECT name, nationality FROM astronauts");
+    run(&workspace, cx);
+    cx.update(|_, cx| assert!(!workspace.read(cx).columns_movable(cx)));
+}
+
+#[gpui_kit::test]
 fn command_return_in_the_editor_runs_the_statement(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx);
     write(&workspace, cx, "SELECT name FROM astronauts ORDER BY id");

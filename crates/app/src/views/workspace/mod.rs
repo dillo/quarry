@@ -51,7 +51,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         let editor = editor::new_editor(editor::WELCOME, window, cx);
-        let results = cx.new(|cx| TableState::new(ResultsDelegate::default(), window, cx));
+        // The delegate indexes rows by model column, so a dragged header
+        // would end up over the wrong data.
+        let results =
+            cx.new(|cx| TableState::new(ResultsDelegate::default(), window, cx).col_movable(false));
         cx.observe_window_appearance(window, |_, _, cx| Aurora::system_appearance_changed(cx))
             .detach();
         let mut workspace = Self {
@@ -84,6 +87,11 @@ impl Workspace {
     /// The run the grid shows.
     pub fn run_model<'a>(&self, cx: &'a App) -> &'a RunModel {
         self.results.read(cx).delegate().model()
+    }
+
+    /// Whether the user can drag result columns into a new order.
+    pub fn columns_movable(&self, cx: &App) -> bool {
+        self.results.read(cx).col_movable
     }
 
     /// Whether the sidebar is shown.
