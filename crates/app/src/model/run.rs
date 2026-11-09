@@ -8,6 +8,9 @@ use quarry_engine::{
     session::RunEvent,
 };
 
+/// The most rows of one statement the grid keeps; the rest are only counted.
+pub const ROW_LIMIT: usize = 100_000;
+
 /// Where a run is in its life.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Phase {
@@ -30,6 +33,7 @@ pub struct RunModel {
     phase: Phase,
     columns: Vec<Column>,
     rows: Vec<Row>,
+    received: u64,
     started_at: Option<Instant>,
     statements: usize,
 }
@@ -40,6 +44,7 @@ impl Default for RunModel {
             phase: Phase::Idle,
             columns: Vec::new(),
             rows: Vec::new(),
+            received: 0,
             started_at: None,
             statements: 0,
         }
@@ -61,7 +66,7 @@ impl RunModel {
         match event {
             RunEvent::Started { .. } => self.begin_statement(),
             RunEvent::Columns(columns) => self.columns = columns,
-            RunEvent::Rows(batch) => self.rows.extend(batch),
+            RunEvent::Rows(batch) => self.take(batch),
             RunEvent::Finished(summary) => self.phase = Phase::Finished(summary),
             RunEvent::Failed(error) => self.phase = Phase::Failed(error),
             RunEvent::Done => self.finish(),
@@ -78,9 +83,19 @@ impl RunModel {
         &self.columns
     }
 
-    /// The current statement's rows received so far.
+    /// The current statement's rows kept so far: at most [`ROW_LIMIT`].
     pub fn rows(&self) -> &[Row] {
         &self.rows
+    }
+
+    /// Every row the current statement has streamed, kept or not.
+    pub fn received(&self) -> u64 {
+        self.received
+    }
+
+    /// Whether the statement streamed more rows than the grid keeps.
+    pub fn truncated(&self) -> bool {
+        self.received > u64::try_from(self.rows.len()).unwrap_or(u64::MAX)
     }
 
     /// Statements started so far in this run.
@@ -103,7 +118,16 @@ impl RunModel {
         self.phase = Phase::Running;
         self.columns.clear();
         self.rows.clear();
+        self.received = 0;
         self.statements += 1;
+    }
+
+    /// Keeps the batch's rows up to [`ROW_LIMIT`] and counts all of them.
+    fn take(&mut self, batch: Vec<Row>) {
+        let arrived = u64::try_from(batch.len()).unwrap_or(u64::MAX);
+        self.received = self.received.saturating_add(arrived);
+        let room = ROW_LIMIT.saturating_sub(self.rows.len());
+        self.rows.extend(batch.into_iter().take(room));
     }
 
     /// `Done` without `Finished` or `Failed` means the worker vanished.
@@ -125,7 +149,7 @@ mod tests {
         value::Value,
     };
 
-    use super::{Phase, RunModel};
+    use super::{Phase, ROW_LIMIT, RunModel};
 
     fn column(name: &str) -> Column {
         Column {
@@ -153,6 +177,7 @@ mod tests {
         assert!(model.columns().is_empty() && model.rows().is_empty());
         assert!(!model.is_running());
         assert_eq!(model.statements(), 0);
+        assert_eq!(model.received(), 0);
     }
 
     #[test]
@@ -183,6 +208,41 @@ mod tests {
         assert!(model.is_running());
         assert!(model.columns().is_empty() && model.rows().is_empty());
         assert_eq!(model.statements(), 2);
+    }
+
+    fn rows(count: usize) -> RunEvent {
+        RunEvent::Rows(vec![vec![Value::Int(1)]; count])
+    }
+
+    #[test]
+    fn the_grid_keeps_only_the_first_rows_but_counts_them_all() {
+        let mut model = RunModel::started(Instant::now());
+        model.apply(started(0));
+        model.apply(rows(ROW_LIMIT - 1));
+        assert!(!model.truncated());
+        assert_eq!(model.received(), 99_999);
+        model.apply(rows(1));
+        assert!(!model.truncated(), "exactly the limit is not truncated");
+        model.apply(rows(3));
+        assert_eq!(model.rows().len(), ROW_LIMIT);
+        assert_eq!(model.received(), 100_003);
+        assert!(model.truncated());
+        model.apply(rows(2));
+        assert_eq!(model.rows().len(), ROW_LIMIT);
+        assert_eq!(model.received(), 100_005);
+    }
+
+    #[test]
+    fn a_new_statement_resets_the_count() {
+        let mut model = RunModel::started(Instant::now());
+        model.apply(started(0));
+        model.apply(rows(ROW_LIMIT + 1));
+        assert!(model.truncated());
+        model.apply(started(1));
+        assert_eq!(model.received(), 0);
+        assert!(!model.truncated());
+        model.apply(rows(2));
+        assert_eq!(model.received(), 2);
     }
 
     #[test]

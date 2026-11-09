@@ -15,7 +15,7 @@ pub fn run_summary(model: &RunModel, elapsed: Duration) -> String {
     match model.phase() {
         Phase::Idle => "Ready".to_owned(),
         Phase::Running => running(model, elapsed),
-        Phase::Finished(summary) => finished(summary),
+        Phase::Finished(summary) => finished(model, summary),
         Phase::Failed(EngineError::Cancelled) => "Cancelled".to_owned(),
         Phase::Failed(_) => "Error".to_owned(),
     }
@@ -31,21 +31,31 @@ pub fn failure(model: &RunModel) -> Option<(String, bool)> {
 }
 
 fn running(model: &RunModel, elapsed: Duration) -> String {
-    let received = u64::try_from(model.rows().len()).unwrap_or(u64::MAX);
     format!(
         "Running · {} · {}",
         format::duration(elapsed),
-        format::rows(received)
+        rows_text(model, model.received())
     )
 }
 
-fn finished(summary: &Summary) -> String {
+/// "1,000 rows", or "100,000 of 250,000 rows" when the grid keeps fewer
+/// than the `total` the statement streamed.
+fn rows_text(model: &RunModel, total: u64) -> String {
+    if model.truncated() {
+        let kept = u64::try_from(model.rows().len()).unwrap_or(u64::MAX);
+        format!("{} of {}", format::count(kept), format::rows(total))
+    } else {
+        format::rows(total)
+    }
+}
+
+fn finished(model: &RunModel, summary: &Summary) -> String {
     let took = format::duration(summary.elapsed);
     match summary.rows_affected {
         Some(0) => format!("Done · {took}"),
         Some(1) => format!("1 row affected · {took}"),
         Some(n) => format!("{} rows affected · {took}", format::count(n)),
-        None => format!("{} · {took}", format::rows(summary.rows)),
+        None => format!("{} · {took}", rows_text(model, summary.rows)),
     }
 }
 
@@ -97,6 +107,25 @@ mod tests {
         assert_eq!(
             run_summary(&model, Duration::from_millis(1500)),
             "Running · 1.50 s · 1,000 rows"
+        );
+    }
+
+    #[test]
+    fn a_truncated_run_says_how_many_rows_the_grid_keeps() {
+        let mut model = RunModel::started(Instant::now());
+        model.apply(RunEvent::Rows(vec![vec![Value::Int(1)]; 250_000]));
+        assert_eq!(
+            run_summary(&model, Duration::from_millis(1500)),
+            "Running · 1.50 s · 100,000 of 250,000 rows"
+        );
+        model.apply(RunEvent::Finished(Summary {
+            rows: 250_000,
+            rows_affected: None,
+            elapsed: MS,
+        }));
+        assert_eq!(
+            run_summary(&model, Duration::ZERO),
+            "100,000 of 250,000 rows · 3.0 ms"
         );
     }
 
