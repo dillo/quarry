@@ -5601,6 +5601,9 @@ dependencies = [
 [[package]]
 name = "quarry"
 version = "0.0.0"
+dependencies = [
+ "quarry-engine",
+]
 
 [[package]]
 name = "quarry-challenges"
