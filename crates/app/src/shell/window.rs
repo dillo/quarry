@@ -5,7 +5,7 @@ use gpui_kit::{
     WindowOptions, point, px, size,
 };
 use quarry_engine::error::EngineError;
-use quarry_ui_kit::tokens::chrome;
+use quarry_ui_kit::{Aurora, tokens::chrome};
 
 use crate::{sample, views::workspace::Workspace};
 
@@ -34,14 +34,18 @@ pub fn options(cx: &App) -> WindowOptions {
 }
 
 /// Opens a workspace on a fresh sample database and focuses its editor.
+/// The window follows the system's light and dark appearance.
 ///
 /// # Errors
 /// Returns the engine's error when the sample database cannot be opened.
 pub fn open_main(cx: &mut App) -> Result<(), EngineError> {
     let session = sample::open()?;
     let opened = gpui_kit::open_window(options(cx), cx, |window, cx| {
+        window
+            .observe_window_appearance(|_, cx| Aurora::system_appearance_changed(cx))
+            .detach();
         let workspace = cx.new(|cx| Workspace::new(session, sample::NAME, window, cx));
-        let editor = workspace.read(cx).editor().clone();
+        let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));
         workspace
     });

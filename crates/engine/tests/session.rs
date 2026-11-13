@@ -5,7 +5,7 @@ use quarry_engine::{
     error::EngineError,
     result::{RowSink, Summary},
     schema::Schema,
-    session::{RunEvent, RunHandle, Session},
+    session::{EVENT_BUFFER, RunEvent, RunHandle, Session},
     sqlite::SqliteDriver,
     value::Value,
 };
@@ -23,7 +23,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 const ENDLESS: &str =
     "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT max(x) FROM n";
 
-/// Streams 100,000 rows: far more than the event buffer holds.
+/// Streams 100,000 rows (200 batches): more than the event buffer holds.
 const MANY: &str = "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 100000) SELECT x FROM n";
 
 fn session() -> Result<Session, EngineError> {
@@ -93,8 +93,9 @@ impl Driver for GateDriver {
     }
 }
 
-/// A driver whose statements each send 16 empty batches, more than the event
-/// buffer holds after `Started`, then succeed whatever the cancel flag says.
+/// A driver whose statements each send [`EVENT_BUFFER`] empty batches, more
+/// than the event buffer holds after `Started`, then succeed whatever the
+/// cancel flag says.
 #[derive(Default)]
 struct BurstDriver {
     canceller: Canceller,
@@ -102,7 +103,7 @@ struct BurstDriver {
 
 impl Driver for BurstDriver {
     fn execute(&mut self, _sql: &str, sink: &mut dyn RowSink) -> Result<Summary, EngineError> {
-        for _ in 0..16 {
+        for _ in 0..EVENT_BUFFER {
             sink.rows(Vec::new());
         }
         Ok(Summary {

@@ -1,39 +1,25 @@
-//! Draws the workspace: sidebar, editor over results, status bar.
+//! Draws the workspace: sidebar, the query tab, status bar.
 
 use std::time::Instant;
 
 use gpui_kit::{
-    AnyElement, App, Context, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, TestSupportExt, Window,
-    component::{
-        input::Editor,
-        resizable::{resizable_panel, v_resizable},
-        table::DataTable,
-    },
-    div,
-    prelude::FluentBuilder,
-    px,
+    AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
 };
 use quarry_ui_kit::{
     Aurora, Role,
     components::{
         status_bar::StatusBar,
-        surface::{glass_panel, sidebar_surface, window_background},
+        surface::{sidebar_surface, window_background},
     },
     tokens::{chrome, space, text},
 };
 
 use super::{SIDEBAR_WIDTH, Workspace};
 use crate::{
-    model::{
-        format,
-        status::{self, Failure},
-    },
+    model::{format, status},
     shell::actions::WORKSPACE,
 };
-
-/// The editor panel's starting height; the divider below it drags.
-pub const EDITOR_HEIGHT: f32 = 220.0;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -87,11 +73,6 @@ impl Workspace {
     }
 
     fn center(&self, cx: &Context<Self>) -> AnyElement {
-        let colors = Aurora::colors(cx);
-        let editor = glass_panel(&colors)
-            .size_full()
-            .p(px(space::SM))
-            .child(Editor::new(&self.editor).appearance(false).h_full());
         div()
             .flex_1()
             .h_full()
@@ -99,39 +80,21 @@ impl Workspace {
             .flex_col()
             .pt(px(chrome::TITLEBAR_HEIGHT))
             .child(
-                div().flex_1().px(px(space::MD)).pb(px(space::SM)).child(
-                    v_resizable("editor-results")
-                        .child(resizable_panel().size(px(EDITOR_HEIGHT)).child(editor))
-                        .child(resizable_panel().child(self.results_panel(cx))),
-                ),
+                div()
+                    .flex_1()
+                    .px(px(space::MD))
+                    .pb(px(space::SM))
+                    .child(self.tab.clone()),
             )
             .child(self.status_bar(cx))
             .into_any_element()
     }
 
-    fn results_panel(&self, cx: &Context<Self>) -> AnyElement {
-        let colors = Aurora::colors(cx);
-        let failure = status::failure(self.run_output(cx));
-        glass_panel(&colors)
-            .id("results")
-            .size_full()
-            .mt(px(space::SM))
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .children(failure.map(|failure| failure_banner(failure, cx)))
-            .child(
-                div()
-                    .flex_1()
-                    .child(DataTable::new(&self.results).bordered(false)),
-            )
-            .into_any_element()
-    }
-
     fn status_bar(&self, cx: &Context<Self>) -> AnyElement {
-        let output = self.run_output(cx);
+        let tab = self.tab.read(cx);
+        let output = tab.output(cx);
         let summary = status::run_summary(output, output.elapsed(Instant::now()));
-        let cursor = self.editor.read(cx).cursor_position();
+        let cursor = tab.editor().read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
         div()
             .id("status")
@@ -142,25 +105,4 @@ impl Workspace {
             )
             .into_any_element()
     }
-}
-
-/// The run's error above the grid; a cancel reads quietly.
-fn failure_banner(failure: Failure, cx: &App) -> AnyElement {
-    let colors = Aurora::colors(cx);
-    let role = if failure.cancelled {
-        Role::TextSecondary
-    } else {
-        Role::Danger
-    };
-    div()
-        .id("run-failure")
-        .px(px(space::MD))
-        .py(px(space::SM))
-        .border_b_1()
-        .border_color(colors.get(Role::Border))
-        .text_size(px(text::BODY))
-        .text_color(colors.get(role))
-        .child(failure.message)
-        .test_support()
-        .into_any_element()
 }

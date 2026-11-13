@@ -44,7 +44,9 @@ use crate::{
 };
 
 /// Batches buffered per run before the session thread waits for the reader.
-const EVENT_BUFFER: usize = 16;
+/// A reader polling every 33 ms streams 200,000 rows in about 0.16 s with
+/// 128 batches, against about 1 s with 16 (ADR 0010).
+pub const EVENT_BUFFER: usize = 128;
 
 /// Something that happened while running a script.
 #[derive(Debug, Clone, PartialEq)]

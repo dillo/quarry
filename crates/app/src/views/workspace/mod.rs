@@ -1,21 +1,25 @@
-//! The workspace: schema sidebar, editor over results, and the status bar.
+//! The workspace: schema sidebar, the query tab, and the status bar.
 //!
 //! This module owns the workspace's state and its window commands;
-//! [`runner`] drives runs against the [`Session`] and [`layout`] draws it.
+//! [`runs`] submits runs and reads the schema, and [`layout`] draws it.
 
 mod layout;
-mod runner;
+mod runs;
 
 use std::time::Duration;
 
 use gpui_kit::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, Task, Window,
-    component::{input::EditorState, table::TableState},
+    component::input::EditorState,
 };
-use quarry_engine::session::{RunHandle, Session};
+use quarry_engine::session::Session;
 use quarry_ui_kit::Aurora;
 
-use super::{editor, results::ResultsDelegate, schema::SchemaTree};
+use super::{
+    editor,
+    query_tab::{QueryTab, QueryTabEvent},
+    schema::SchemaTree,
+};
 use crate::{
     model::statements::RunOutput,
     shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
@@ -31,14 +35,11 @@ pub const SIDEBAR_WIDTH: f32 = 240.0;
 pub struct Workspace {
     session: Session,
     database: String,
-    editor: Entity<EditorState>,
-    results: Entity<TableState<ResultsDelegate>>,
+    tab: Entity<QueryTab>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
-    current: Option<RunHandle>,
-    run: Option<Task<()>>,
     schema_read: Option<Task<()>>,
 }
 
@@ -50,48 +51,43 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let editor = editor::new_editor(editor::WELCOME, window, cx);
-        // The delegate indexes rows by model column, so a dragged header
-        // would end up over the wrong data.
-        let results =
-            cx.new(|cx| TableState::new(ResultsDelegate::default(), window, cx).col_movable(false));
-        cx.observe_window_appearance(window, |_, _, cx| Aurora::system_appearance_changed(cx))
-            .detach();
+        let tab = cx.new(|cx| QueryTab::new(editor::WELCOME, window, cx));
+        cx.subscribe(&tab, |workspace, _, event, cx| match event {
+            QueryTabEvent::RunEnded => workspace.read_schema(cx),
+        })
+        .detach();
         let mut workspace = Self {
             session,
             database: database.to_owned(),
-            editor,
-            results,
+            tab,
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
-            current: None,
-            run: None,
             schema_read: None,
         };
         workspace.read_schema(cx);
         workspace
     }
 
-    /// The editor, so callers can focus it or set its text.
-    pub fn editor(&self) -> &Entity<EditorState> {
-        &self.editor
+    /// The active query tab.
+    pub fn active_tab(&self) -> &Entity<QueryTab> {
+        &self.tab
+    }
+
+    /// The active tab's editor.
+    pub fn editor(&self, cx: &App) -> Entity<EditorState> {
+        self.tab.read(cx).editor().clone()
+    }
+
+    /// The active tab's latest run.
+    pub fn run_output<'a>(&self, cx: &'a App) -> &'a RunOutput {
+        self.tab.read(cx).output(cx)
     }
 
     /// The sidebar's schema tree.
     pub fn schema(&self) -> &Entity<SchemaTree> {
         &self.schema
-    }
-
-    /// The latest run.
-    pub fn run_output<'a>(&self, cx: &'a App) -> &'a RunOutput {
-        self.results.read(cx).delegate().output()
-    }
-
-    /// Whether the user can drag result columns into a new order.
-    pub fn columns_movable(&self, cx: &App) -> bool {
-        self.results.read(cx).col_movable
     }
 
     /// Whether the sidebar is shown.
@@ -118,7 +114,8 @@ impl Workspace {
     }
 
     fn focus_editor(&mut self, _: &FocusEditor, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor.update(cx, |state, cx| state.focus(window, cx));
+        self.editor(cx)
+            .update(cx, |state, cx| state.focus(window, cx));
     }
 
     fn cycle_theme(_: &mut Self, _: &CycleTheme, _: &mut Window, cx: &mut Context<Self>) {
