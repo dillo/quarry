@@ -4,12 +4,13 @@
 //! [`crate::model::drain`]).
 
 use gpui_kit::{Context, Window};
-use quarry_engine::{error::EngineError, schema::Schema};
+use quarry_engine::{error::EngineError, schema::Schema, splitter};
 
 use super::{POLL, Workspace};
 use crate::{
     model::drain::{Drained, drain},
-    shell::actions::{CancelRun, RunStatement},
+    shell::actions::{CancelRun, RunAll, RunStatement},
+    views::query_tab::RunScope,
 };
 
 impl Workspace {
@@ -24,7 +25,23 @@ impl Workspace {
             return;
         };
         let handle = self.session.run(sql.clone());
-        tab.update(cx, |tab, cx| tab.start(sql, handle, cx));
+        tab.update(cx, |tab, cx| {
+            tab.start(sql, RunScope::Statement, handle, cx);
+        });
+        cx.notify();
+    }
+
+    /// Runs the active tab's whole script, statement by statement.
+    pub(super) fn run_all(&mut self, _: &RunAll, _: &mut Window, cx: &mut Context<Self>) {
+        let tab = self.active_tab().clone();
+        let script = tab.read(cx).text(cx);
+        if splitter::split(&script).is_empty() {
+            return;
+        }
+        let handle = self.session.run(script.clone());
+        tab.update(cx, |tab, cx| {
+            tab.start(script, RunScope::Script, handle, cx);
+        });
         cx.notify();
     }
 

@@ -49,7 +49,7 @@ fn every_menu_command_has_a_key_binding() {
             _ => None,
         })
         .collect();
-    assert_eq!(commands.len(), 11);
+    assert_eq!(commands.len(), 12);
     for command in commands {
         assert!(bound.contains(&command), "{command} has no key binding");
     }

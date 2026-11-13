@@ -1,31 +1,23 @@
 //! Query tabs: opening, closing and switching them, and keeping their
 //! drafts across restarts.
 
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
-use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
+use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
 use quarry::{
     model::statements::Phase,
-    sample,
-    shell::actions,
-    views::workspace::{AUTOSAVE, POLL, SavedTabs, Workspace, tab_element_id},
+    views::workspace::{AUTOSAVE, Workspace, tab_element_id},
 };
-use quarry_engine::error::EngineError;
 use quarry_store::{
     drafts::{Draft, DraftStore, Drafts},
     error::StoreError,
     sqlite::SqliteStore,
 };
-use quarry_ui_kit::{Aurora, Preference};
 
-/// How long a test waits for the session thread before giving up.
-const PATIENCE: Duration = Duration::from_secs(10);
+use super::support::{drawn, install, open_with as open, settle};
 
 /// A store whose every read and write fails.
 struct Broken;
@@ -37,47 +29,6 @@ impl DraftStore for Broken {
 
     fn save(&self, _: &Drafts) -> Result<(), StoreError> {
         Err(StoreError::Sql("disk I/O error".to_owned()))
-    }
-}
-
-fn install(cx: &mut TestAppContext) {
-    let installed = cx.update(|cx| {
-        gpui_kit::init(cx);
-        actions::install(cx);
-        Aurora::install(Preference::Dark, cx)
-    });
-    assert_eq!(installed, Ok(()));
-}
-
-/// A workspace on a fresh sample database, saving to `store`.
-fn open(
-    cx: &mut TestAppContext,
-    store: Arc<dyn DraftStore>,
-) -> Result<(Entity<Workspace>, &mut VisualTestContext), EngineError> {
-    let session = sample::open()?;
-    let saved = SavedTabs {
-        store,
-        problem: None,
-    };
-    let (workspace, cx) =
-        cx.add_window_view(|window, cx| Workspace::new(session, sample::NAME, saved, window, cx));
-    cx.update(|window, cx| {
-        let editor = workspace.read(cx).editor(cx);
-        editor.update(cx, |state, cx| state.focus(window, cx));
-    });
-    settle(cx, |_, _| true);
-    Ok((workspace, cx))
-}
-
-fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut Window, &mut App) -> bool) {
-    let deadline = std::time::Instant::now() + PATIENCE;
-    while std::time::Instant::now() < deadline {
-        cx.executor().advance_clock(POLL);
-        cx.run_until_parked();
-        if cx.update(|window, cx| done(window, cx)) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(5));
     }
 }
 
@@ -245,11 +196,10 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
 fn a_failing_store_shows_a_warning(cx: &mut TestAppContext) {
     install(cx);
     let (workspace, cx) = open(cx, Arc::new(Broken)).expect("the sample database opens");
-    cx.update(|window, cx| {
+    cx.update(|_, cx| {
         assert_eq!(workspace.read(cx).drafts_problem(), Some("disk I/O error"));
-        window.draw(cx).clear(cx);
-        assert!(window.try_find("drafts-warning").is_some());
     });
+    assert!(drawn(cx, "drafts-warning"));
 }
 
 /// A store whose load fails but whose save would succeed, noting any save.

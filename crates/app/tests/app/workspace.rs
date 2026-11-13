@@ -1,89 +1,18 @@
 //! The workspace in a headless window: running, cancelling, the schema tree
 //! and the window commands.
 
-use std::{sync::Arc, time::Duration};
-
 use gpui_kit::{
-    App, Entity, Focusable, TestAppContext, VisualTestContext, Window,
+    Focusable, TestAppContext,
     test::{TestEventExt, TestWindowExt},
 };
 use quarry::{
     model::statements::Phase,
-    sample,
-    shell::{actions, store::Forgetful},
-    views::{
-        schema::table_row_id,
-        workspace::{POLL, SavedTabs, Workspace},
-    },
+    views::{query_tab::RunScope, schema::table_row_id},
 };
 use quarry_engine::{error::EngineError, session::RunEvent};
 use quarry_ui_kit::{Aurora, Preference};
 
-/// How long a test waits for the session thread before giving up.
-const PATIENCE: Duration = Duration::from_secs(10);
-
-/// A workspace on a fresh sample database, with its editor focused.
-fn open(
-    cx: &mut TestAppContext,
-) -> Result<(Entity<Workspace>, &mut VisualTestContext), EngineError> {
-    let installed = cx.update(|cx| {
-        gpui_kit::init(cx);
-        actions::install(cx);
-        Aurora::install(Preference::Dark, cx)
-    });
-    assert_eq!(installed, Ok(()));
-    let session = sample::open()?;
-    let saved = SavedTabs {
-        store: Arc::new(Forgetful),
-        problem: None,
-    };
-    let (workspace, cx) =
-        cx.add_window_view(|window, cx| Workspace::new(session, sample::NAME, saved, window, cx));
-    cx.update(|window, cx| {
-        let editor = workspace.read(cx).editor(cx);
-        editor.update(cx, |state, cx| state.focus(window, cx));
-    });
-    settle(cx, |_, _| true);
-    Ok((workspace, cx))
-}
-
-/// Replaces the editor's text and puts the cursor at the end.
-fn write(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, sql: &str) {
-    cx.update(|window, cx| {
-        let editor = workspace.read(cx).editor(cx);
-        editor.update(cx, |state, cx| {
-            state.set_value(sql.to_owned(), window, cx);
-            state.set_selected_range(sql.len()..sql.len(), cx);
-        });
-    });
-}
-
-/// Pumps the executor until `done` holds or [`PATIENCE`] runs out; the
-/// session thread delivers events in real time.
-fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut Window, &mut App) -> bool) {
-    let deadline = std::time::Instant::now() + PATIENCE;
-    while std::time::Instant::now() < deadline {
-        cx.executor().advance_clock(POLL);
-        cx.run_until_parked();
-        if cx.update(|window, cx| done(window, cx)) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
-}
-
-/// Runs the editor's statement with ⌘↵ and waits for the run to end.
-fn run(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) {
-    cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| {
-        let output = workspace.read(cx).run_output(cx);
-        !output.is_running() && output.phase() != &Phase::Idle
-    });
-}
-
-fn phase(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Phase {
-    cx.update(|_, cx| workspace.read(cx).run_output(cx).phase().clone())
-}
+use super::support::{drawn, open, phase, run, settle, write};
 
 #[gpui_kit::test]
 fn the_editor_never_has_a_completion_provider(cx: &mut TestAppContext) {
@@ -143,10 +72,7 @@ fn a_bad_statement_shows_the_database_error(cx: &mut TestAppContext) {
         phase(&workspace, cx),
         Phase::Failed(EngineError::Sql("no such table: nowhere".to_owned()))
     );
-    cx.update(|window, cx| {
-        window.draw(cx).clear(cx);
-        assert!(window.try_find("run-failure").is_some());
-    });
+    assert!(drawn(cx, "run-failure"));
 }
 
 #[gpui_kit::test]
@@ -282,17 +208,16 @@ fn a_run_whose_channel_closes_without_done_reports_a_lost_worker(cx: &mut TestAp
     drop(sender);
     cx.update(|_, cx| {
         let tab = workspace.read(cx).active_tab().clone();
-        tab.update(cx, |tab, cx| tab.follow("SELECT 1".to_owned(), events, cx));
+        tab.update(cx, |tab, cx| {
+            tab.follow("SELECT 1".to_owned(), RunScope::Statement, events, cx);
+        });
     });
     settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
     assert_eq!(
         phase(&workspace, cx),
         Phase::Failed(EngineError::WorkerGone)
     );
-    cx.update(|window, cx| {
-        window.draw(cx).clear(cx);
-        assert!(window.try_find("run-failure").is_some());
-    });
+    assert!(drawn(cx, "run-failure"));
 }
 
 #[gpui_kit::test]

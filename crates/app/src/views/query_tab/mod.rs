@@ -17,7 +17,10 @@ use gpui_kit::{
 };
 use quarry_engine::session::{RunEvent, RunHandle};
 
-use super::{editor, results::ResultsDelegate};
+use super::{
+    editor,
+    results::{ResultViewRegistry, ResultsDelegate},
+};
 use crate::model::{statements::RunOutput, target};
 
 /// What a tab tells the workspace.
@@ -29,10 +32,22 @@ pub enum QueryTabEvent {
     Edited,
 }
 
+/// What a run was asked to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunScope {
+    /// The selection, or the statement under the cursor (⌘↵).
+    Statement,
+    /// The whole editor (⌘⇧R).
+    Script,
+}
+
 /// A query tab.
 pub struct QueryTab {
     editor: Entity<EditorState>,
     results: Entity<TableState<ResultsDelegate>>,
+    views: ResultViewRegistry,
+    view: usize,
+    scope: RunScope,
     run: Option<RunHandle>,
     pump: Option<Task<()>>,
     _edits: Subscription,
@@ -56,6 +71,9 @@ impl QueryTab {
         Self {
             editor,
             results,
+            views: ResultViewRegistry::standard(),
+            view: 0,
+            scope: RunScope::Statement,
             run: None,
             pump: None,
             _edits: edits,
@@ -91,14 +109,29 @@ impl QueryTab {
     }
 
     /// Shows the run of `script` that `handle` follows, replacing the last.
-    pub fn start(&mut self, script: String, handle: RunHandle, cx: &mut Context<Self>) {
-        self.follow(script, handle.events.clone(), cx);
+    pub fn start(
+        &mut self,
+        script: String,
+        scope: RunScope,
+        handle: RunHandle,
+        cx: &mut Context<Self>,
+    ) {
+        self.follow(script, scope, handle.events.clone(), cx);
         self.run = Some(handle);
     }
 
-    /// Shows the run of `script` whose events arrive on `events`.
-    pub fn follow(&mut self, script: String, events: Receiver<RunEvent>, cx: &mut Context<Self>) {
+    /// Shows the run of `script` whose events arrive on `events`, in the
+    /// Results view.
+    pub fn follow(
+        &mut self,
+        script: String,
+        scope: RunScope,
+        events: Receiver<RunEvent>,
+        cx: &mut Context<Self>,
+    ) {
         self.run = None;
+        self.scope = scope;
+        self.select_view("results", cx);
         self.results.update(cx, |table, cx| {
             table.delegate_mut().reset(RunOutput::submitted(script));
             table.clear_selection(cx);
@@ -107,6 +140,41 @@ impl QueryTab {
         });
         self.pump = Some(Self::pump(events, cx));
         cx.notify();
+    }
+
+    /// The views under the editor.
+    pub fn views(&self) -> &ResultViewRegistry {
+        &self.views
+    }
+
+    /// The id of the view shown under the editor.
+    pub fn view_id(&self) -> &'static str {
+        self.views.views()[self.view].id()
+    }
+
+    /// Shows the view named `id`; an unknown id changes nothing.
+    pub fn select_view(&mut self, id: &str, cx: &mut Context<Self>) {
+        if let Some(position) = self.views.position(id) {
+            self.select_view_at(position, cx);
+        }
+    }
+
+    /// Shows the view at `position` in the switch; past the end changes
+    /// nothing.
+    pub fn select_view_at(&mut self, position: usize, cx: &mut Context<Self>) {
+        if position < self.views.views().len() {
+            self.view = position;
+            cx.notify();
+        }
+    }
+
+    /// Shows statement `index`'s rows in the grid.
+    pub fn show_statement(&mut self, index: usize, cx: &mut Context<Self>) {
+        self.results.update(cx, |table, cx| {
+            table.delegate_mut().show(index);
+            table.refresh(cx);
+            cx.notify();
+        });
     }
 
     /// Cancels the tab's run, if one is going.

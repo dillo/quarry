@@ -1,4 +1,4 @@
-//! The results grid: one statement's rows in a virtualized table.
+//! The grid: one statement's rows in a virtualized table.
 
 use gpui_kit::{
     AnyElement, App, Context, IntoElement, ParentElement, SharedString, Styled, Window,
@@ -54,18 +54,25 @@ impl ResultsDelegate {
         self.output.end_closed();
     }
 
-    /// Folds `event` in, showing each statement as it starts; returns
-    /// whether the table's columns changed.
+    /// Folds `event` in; returns whether the table's columns changed.
+    ///
+    /// The grid shows the first statement that returns rows: until one
+    /// does, each statement's columns take over the grid as they arrive.
     pub fn apply(&mut self, event: RunEvent, now: Instant) -> bool {
-        if let RunEvent::Started { index, .. } = &event {
-            self.shown = *index;
-        }
-        let reshapes = matches!(event, RunEvent::Started { .. } | RunEvent::Columns(_));
+        let columns = matches!(event, RunEvent::Columns(_));
         self.output.apply(event, now);
-        if reshapes {
-            self.columns = self.shown_columns();
+        if !columns || !self.columns.is_empty() {
+            return false;
         }
-        reshapes
+        self.shown = self.output.statements().len().saturating_sub(1);
+        self.columns = self.shown_columns();
+        true
+    }
+
+    /// Shows statement `index`.
+    pub fn show(&mut self, index: usize) {
+        self.shown = index;
+        self.columns = self.shown_columns();
     }
 
     fn shown_columns(&self) -> Vec<Column> {

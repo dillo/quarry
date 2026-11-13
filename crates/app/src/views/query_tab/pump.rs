@@ -10,9 +10,12 @@ use async_channel::Receiver;
 use gpui_kit::{Context, Task};
 use quarry_engine::session::RunEvent;
 
-use super::{QueryTab, QueryTabEvent};
+use super::{QueryTab, QueryTabEvent, RunScope};
 use crate::{
-    model::drain::{Drained, drain},
+    model::{
+        drain::{Drained, drain},
+        statements::StatementOutput,
+    },
     views::workspace::POLL,
 };
 
@@ -38,11 +41,24 @@ impl QueryTab {
         let ended = drained.closed || done;
         self.apply(drained.items, vanished, cx);
         if ended {
-            self.run = None;
-            cx.emit(QueryTabEvent::RunEnded);
+            self.run_ended(cx);
         }
         cx.notify();
         !ended
+    }
+
+    /// A script whose statements returned no rows opens on its messages.
+    fn run_ended(&mut self, cx: &mut Context<Self>) {
+        self.run = None;
+        let rows = self
+            .output(cx)
+            .statements()
+            .iter()
+            .any(StatementOutput::returns_rows);
+        if self.scope == RunScope::Script && !rows {
+            self.select_view("messages", cx);
+        }
+        cx.emit(QueryTabEvent::RunEnded);
     }
 
     /// Folds the events in; a channel that closed without `Done` ends the run

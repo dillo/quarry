@@ -33,6 +33,7 @@ impl Render for Workspace {
             .key_context(WORKSPACE)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::run_statement))
+            .on_action(cx.listener(Self::run_all))
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(Self::new_tab))
             .on_action(cx.listener(Self::close_tab))
