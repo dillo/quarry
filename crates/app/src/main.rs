@@ -10,6 +10,7 @@ fn main() {
         .run(|cx: &mut App| {
             gpui_kit::init(cx);
             actions::install(cx);
+            window::on_last_window_closed(cx, |cx| cx.quit());
             let started = Aurora::install(Preference::Dark, cx)
                 .map_err(|error| error.to_string())
                 .and_then(|()| {

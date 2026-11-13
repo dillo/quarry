@@ -58,3 +58,14 @@ pub fn open_main(saved: SavedTabs, cx: &mut App) -> Result<(), EngineError> {
         message: error.to_string(),
     })
 }
+
+/// Runs `then` when the last window closes. Quarry quits then, so it never
+/// lingers with no window and no way to open one.
+pub fn on_last_window_closed(cx: &mut App, then: impl Fn(&mut App) + 'static) {
+    cx.on_window_closed(move |cx, _| {
+        if cx.windows().is_empty() {
+            then(cx);
+        }
+    })
+    .detach();
+}

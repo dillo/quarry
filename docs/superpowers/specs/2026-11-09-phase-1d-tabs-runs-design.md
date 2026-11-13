@@ -63,7 +63,7 @@ impl SqliteStore {
   - A file with a newer `user_version` than this build knows is refused with `StoreError::TooNew { found, supported }` and never modified.
 - **Schema v1:**
   - `drafts(id INTEGER PRIMARY KEY, position INTEGER NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL)`
-  - `state(key TEXT PRIMARY KEY, value TEXT NOT NULL)`, where the `active` key holds the active tab's index.
+  - `state(key TEXT PRIMARY KEY, value INTEGER NOT NULL)`, where the `active` key holds the active tab's index.
 - **`save`** replaces every row in one transaction.
 - **`load`** of an empty store returns no tabs and `active` 0. An `active` index past the last tab is clamped to the last tab.
 - **`StoreError`** is a `thiserror` enum with readable messages: `Open`, `TooNew`, `Sql(String)`.
@@ -93,11 +93,11 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 | Module | Responsibility |
 |---|---|
 | `tabs.rs` | `TabList`: the ordered tab ids, the active index, and a "Query N" name taking the next N after the highest one in use. Also the `open`, `close` (closing the last tab opens a fresh one), `next` and `previous` (both wrap) and `activate` rules. |
-| `autosave.rs` | `Autosave`: `edited(now)`, `due(now) -> bool` (1 s after the last edit) and `saved()`. Pure timing, with no I/O. |
-| `statements.rs` | `RunOutput`: splits one run's `RunEvent`s into a `StatementOutput` per statement. Each holds the index, the range, a label (number plus first words, 24 characters at most, whitespace collapsed), its columns, its rows (`ROW_LIMIT` cap and a truncated count), and either a `Summary` or an `EngineError`. Absorbs today's per-statement handling in `RunModel`. |
+| `statements.rs` | `RunOutput`: splits one run's `RunEvent`s into a `StatementOutput` per statement. Each holds the index, a label (number plus first words, 24 characters at most, whitespace collapsed), its columns, its rows (`ROW_LIMIT` cap and a truncated count), and either a `Summary` or an `EngineError`. Replaces 1C's `RunModel`. |
 | `messages.rs` | One `MessageLine { statement, text, is_error }` per statement: "N rows · t", "N rows affected · t", "Done · t", the error text, or "Cancelled". |
-| `plan_tree.rs` | Flattens a `Plan` into `PlanRow { depth, label }`, depth first. |
-| `status.rs` (changed) | Adds the waiting state ("Waiting for the previous run…") and the whole-run time (M7). `failure` returns `Failure { message, cancelled }` (M14). |
+| `plan_tree.rs` | Flattens a `Plan` into `PlanRow { depth, label }`, depth first; `PlanState` (Idle, Planning, Ready, Failed) is what the Plan view shows. |
+| `status.rs` (changed) | Adds the waiting state ("Waiting for the previous run…") and "N statements · t" for a finished multi-statement run (M7). `failure` returns `Failure { message, cancelled }` (M14). |
+| `drain.rs` (changed) | `reply` turns a drained one-off reply (a schema or a plan) into its answer, or `WorkerGone`. |
 | `format.rs` (changed) | `cell_text` borrows `&Value`, truncates before normalising, and maps `\t` and other control characters to spaces (M4). |
 
 ### 3.4 App: `views/`
@@ -105,7 +105,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 - **`query_tab.rs`:** a `QueryTab` entity. It holds the editor, the current `RunHandle` (`run`), the pump task (`pump`), a `RunOutput`, the selected result view, and the selected statement tab.
   - It takes its events through an injected `Receiver<RunEvent>`, so tests can supply any channel.
   - Most of 1C's `workspace/runner.rs` moves here.
-- **`tab_bar.rs`:** the query tab strip, using ui-kit `Tab`, with a "+" button.
+- **`workspace/tab_strip.rs`:** the query tab strip in the title bar, using ui-kit `Tab`, with a "+" button.
 - **`results/`:**
   - The `ResultView` trait: `id`, `title`, `render(&QueryTab, …)`.
   - `ResultViewRegistry`, holding Results, Messages and Plan in that order. Adding a view is a new module plus one registration line.
@@ -116,7 +116,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
   - the schema sidebar;
   - the `TabList` and its `Entity<QueryTab>`s;
   - the status bar, which reads the active tab;
-  - `Autosave` and the `DraftStore`, as `Box<dyn DraftStore>`.
+  - the `DraftStore`, as `Arc<dyn DraftStore>`, and the pending autosave timer.
 
 ### 3.5 App: `shell/`
 
@@ -126,8 +126,8 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
   - Run and Cancel also bind in the `Workspace > Input` context, as in 1C.
 - **Menus:** File gets New Tab and Close Tab. Query gets Run All and Explain. View gets Next Tab and Previous Tab.
 - **Follow the system appearance** from `open_main`, not from `Workspace` (M12).
-- **Quit when the last window closes** (M13).
-- **Opening the store:** if it fails, the workspace gets a store that keeps drafts in memory, and the warning reason is shown (§5).
+- **Quit when the last window closes** (M13): `on_last_window_closed` takes the action to run, so tests can observe it.
+- **Opening the store (`shell::store`):** if it fails, or the drafts can't be loaded from it, the workspace gets `Forgetful`, a store that keeps nothing, and the warning reason is shown (§5). The file is never written over, and the tabs themselves stay open for the session.
 
 ## 4. Behaviour
 
@@ -138,7 +138,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 - **Cancel:** ⌘. cancels the active tab's run.
 - **Run (⌘↵)** runs the selection or the statement under the cursor, using 1C's `run_target`, and selects the Results view.
 - **Run all (⌘⇧R)** sends the whole editor text.
-  - Each statement that returns rows gets a result tab, and the first such tab is selected.
+  - Each statement that returns rows gets a result tab (the strip appears once there are two), and the first such tab is selected.
   - If no statement returns rows, the Messages view is selected.
 - **Messages** lists every statement that started.
 - **Failure:**
@@ -146,8 +146,8 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
   - The red banner (1C's `failure_banner`) shows above whichever view is open.
 - **Re-running a tab** replaces that tab's output, clears the grid's selection and scrolls it to the top (M3). Other tabs are unaffected.
 - **Schema refresh:** after every run, the schema sidebar refreshes, as in 1C.
-- **Status-bar time:** the timer measures from submission to `Done`, both while running and at the end (M7). Each statement's own time appears in Messages.
-- **Throughput (M2):** when a drain empties a full `EVENT_BUFFER`, the pump drains again straight away, up to 8 times per tick. The 200k-row stream time is measured before and after and recorded in ADR 0010.
+- **Status-bar time (M7):** the timer measures from the first statement's `Started` to `Done`, both while running and at the end; the final figure is never less than the statements' own times added up, because polled timestamps are only as precise as the 33 ms poll. Time spent queued behind another tab's run isn't counted. Each statement's own time appears in Messages.
+- **Throughput (M2):** the session's `EVENT_BUFFER` grows from 16 to 128 batches. Measured with a 33 ms poll, the 200k-row stream drops from about 1.0 s to 0.16 s (recorded in ADR 0010). Re-polling within a tick was considered, but the worker refills too slowly between immediate re-polls for it to help.
 
 ### 4.2 Explain (⌘E)
 
@@ -162,9 +162,8 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 - **⌘T** opens an empty "Query N" after the active tab and focuses its editor.
 - **⌘W** closes the active tab without a prompt and activates its right neighbour, or its left neighbour if it was last. Closing the only tab replaces it with a fresh empty "Query N".
 - **Saving:**
-  - Edits call `Autosave::edited`.
-  - A save happens 1 s after the last edit.
-  - It also happens straight away on ⌘T, ⌘W, a tab switch and app quit.
+  - Each edit (the editor's change event) restarts a 1 s timer (`AUTOSAVE`); when it fires, the drafts are saved.
+  - It also happens straight away on ⌘T, ⌘W, a tab switch, closing the window and app quit.
   - Saves run on GPUI's background executor.
 - **What is saved:** titles, texts, order and the active index. Results, cursors and selections are not saved.
 
@@ -172,7 +171,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 
 | Situation | Behaviour |
 |---|---|
-| Store can't be opened (permissions, corrupt file) | Drafts are kept in memory. The status bar shows "Drafts aren't being saved", with the error as its tooltip. |
+| Store can't be opened or its drafts can't be loaded (permissions, corrupt file, locked) | Drafts are kept in memory. The status bar shows "Drafts aren't being saved", with the error as its tooltip. |
 | Store file is from a newer Quarry | The same warning, with "Saved by a newer Quarry (version N)". The file is never modified. |
 | A save fails | The same warning. Saving is retried on the next edit, and the warning clears after a successful save. |
 | Plan unsupported or failed | A message inside the Plan view. |
@@ -192,7 +191,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
   - the default `plan` returns `PlanUnsupported`;
   - `Session::plan` after a queued run.
 - **Models:** every module in §3.3 has unit tests for each rule listed there.
-- **Views (GPUI tests):**
+- **Views (GPUI tests, one `tests/app` binary sharing `tests/app/support.rs`):**
   - ⌘T, ⌘W and switching, with each tab keeping its output;
   - closing the last tab;
   - Run all producing the right result tabs and Messages lines;
@@ -226,12 +225,12 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 
 1. `quarry-store`: `DraftStore`, `SqliteStore`, migrations, `StoreError`.
 2. Engine: `Plan`, `Driver::plan`, `EngineError::PlanUnsupported`, the SQLite plan, `Session::plan`.
-3. Model: `tabs`, `autosave`.
-4. Model: `statements`, `messages`, `plan_tree`; M4 (formatting), M6, M7, M14.
-5. Move the editor and run into `QueryTab` with no change in behaviour; M2, M3, M4 (view), M9, M11, the vanished-worker test.
-6. Tab bar, ⌘T, ⌘W, ⌘⇧] and ⌘⇧[; draft persistence and the warning.
+3. Model: `tabs`.
+4. Model: `statements`, `messages`, `plan_tree`; M4 (formatting), M6, M7, M14; the views switch to `RunOutput`.
+5. Move the editor and run into `QueryTab` with no change in behaviour; M2, M3, M4 (view), M9, M11, M12, the vanished-worker test.
+6. Tab bar, ⌘T, ⌘W, ⌘⇧] and ⌘⇧[; draft persistence, `shell::store` and the warning.
 7. `ResultViewRegistry`, the Results/Messages switch, per-statement result tabs, Run all.
 8. Plan view and Explain (⌘E).
-9. Shell (M12, M13, the store path, menus), ADR 0010 "Tabs and drafts", README, and a parent-spec §4.2 note.
+9. M13, ADR 0010 "Query tabs, drafts and result views", README, and a parent-spec §4.2 note.
 
 As in 1C, a verified prototype is built first, and the plan is generated from it.

@@ -1,7 +1,7 @@
 //! Start-up: the main window opens on the sample database, and every command
 //! has a key binding and a menu item.
 
-use std::path::Path;
+use std::{cell::Cell, path::Path, rc::Rc};
 
 use gpui_kit::{MenuItem, TestAppContext, px};
 use quarry::shell::{actions, store, window};
@@ -87,4 +87,24 @@ fn a_store_that_opens_has_no_problem() {
     let dir = tempfile::tempdir().expect("a temporary folder");
     let saved = store::saved_tabs(Some(&dir.path().join("quarry.db")));
     assert_eq!(saved.problem, None);
+}
+
+#[gpui_kit::test]
+fn closing_the_last_window_is_noticed(cx: &mut TestAppContext) {
+    let closed = Rc::new(Cell::new(false));
+    let seen = Rc::clone(&closed);
+    cx.update(|cx| {
+        gpui_kit::init(cx);
+        actions::install(cx);
+        assert_eq!(Aurora::install(Preference::Dark, cx), Ok(()));
+        window::on_last_window_closed(cx, move |_| seen.set(true));
+        assert_eq!(window::open_main(store::saved_tabs(None), cx), Ok(()));
+    });
+    let windows = cx.windows();
+    assert!(!closed.get());
+    for window in windows {
+        let _ = window.update(cx, |_, window, _| window.remove_window());
+    }
+    cx.run_until_parked();
+    assert!(closed.get());
 }
