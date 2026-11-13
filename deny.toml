@@ -3,10 +3,19 @@
 
 [graph]
 all-features = true
+# Quarry ships only for Apple Silicon macOS; other platforms' deps are out of scope.
+targets = ["aarch64-apple-darwin"]
 
 [advisories]
 yanked = "deny"
-ignore = []
+# Unmaintained (not vulnerable) crates that only GPUI pulls in. We cannot
+# replace them ourselves; revisit each on every gpui-kit upgrade.
+ignore = [
+    { id = "RUSTSEC-2024-0384", reason = "instant: unmaintained, transitive via gpui-kit, no vulnerability" },
+    { id = "RUSTSEC-2024-0436", reason = "paste: unmaintained, transitive via gpui-kit, no vulnerability" },
+    { id = "RUSTSEC-2026-0206", reason = "rustybuzz: unmaintained, transitive via gpui-kit, no vulnerability" },
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser: unmaintained, transitive via gpui-kit, no vulnerability" },
+]
 
 [licenses]
 allow = [
@@ -18,6 +27,12 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "Zlib",
+    # Permissive / public-domain-style, brought in by GPUI (0BSD: enum-iterator, CC0: notify).
+    "0BSD",
+    "CC0-1.0",
+    # Weak (file-level) copyleft, brought in by GPUI (cbindgen at build time, option-ext).
+    # Accepted 2026-11-08: Quarry's own code stays MIT OR Apache-2.0.
+    "MPL-2.0",
 ]
 confidence-threshold = 0.9
 # The allow-list anticipates later phases; not every license is used yet.
@@ -29,7 +44,15 @@ ignore = true
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# Workspace crates depend on each other by path; none is published.
+allow-wildcard-paths = true
 skip = []
+# GPUI's own dependency tree carries many duplicate versions we cannot unify.
+# skip-tree hides every duplicate reachable from gpui-kit, including a second
+# copy of a crate Quarry also depends on directly (thiserror, serde_json), so
+# those collisions are NOT reported. Pinned to the version reviewed; an
+# upgrade stops matching and forces this to be revisited.
+skip-tree = [{ crate = "gpui-kit@0.9.0", reason = "duplicates inside GPUI's tree are upstream's to resolve" }]
 
 [sources]
 unknown-registry = "deny"

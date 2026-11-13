@@ -43,7 +43,7 @@ quarry/
 │  ├─ app/          GPUI binary: window, workspace, views, actions, registries wiring
 │  ├─ ui-kit/       Aurora design system: tokens, themes, glass panel, button, tabs,
 │  │                badge, progress ring, status bar, theme cross-fade
-│  ├─ engine/       Driver/Introspector traits, Value/QueryResult model, drivers
+│  ├─ engine/       Driver trait, Value/Summary/RowSink model, drivers
 │  │                (sqlite, postgres, mysql), statement splitter + classifier
 │  ├─ challenges/   Track loader, sandbox manager, ChallengeKind, CheckRule pipeline,
 │  │                HintPolicy
@@ -73,7 +73,7 @@ New features are added through traits and registries, never by spreading `match`
 
 | Extension point | Trait / registry | Adding one touches |
 |---|---|---|
-| Database driver | `engine::Driver` + `Introspector`, `DriverRegistry` | New module + 1 registration line |
+| Database driver | `engine::Driver` (incl. `schema()`), `DriverRegistry` | New module + 1 registration line |
 | Challenge track | Folder in `content/tracks/` | 0 lines of code |
 | Challenge kind | `challenges::ChallengeKind` | New module + 1 line |
 | Answer-check rule | `challenges::CheckRule` (ordered pipeline) | New module + 1 line |
@@ -96,31 +96,42 @@ pub enum Value { Null, Bool(bool), Int(i64), Float(f64), Decimal(String),
 
 pub struct Column { pub name: String, pub type_name: String }
 
-pub struct QueryResult { pub columns: Vec<Column>, pub rows: Vec<Vec<Value>>,
-                         pub rows_affected: Option<u64>, pub elapsed: Duration }
+pub struct Summary { pub rows: u64, pub rows_affected: Option<u64>, pub elapsed: Duration }
 
-#[async_trait]
-pub trait Driver: Send + Sync {
-    async fn execute(&self, sql: &str, sink: RowSink) -> Result<ExecSummary, EngineError>;
-    fn cancel_handle(&self) -> CancelHandle;
-    fn introspector(&self) -> &dyn Introspector;
+/// Receives a statement's results as they are produced.
+pub trait RowSink {
+    fn columns(&mut self, columns: Vec<Column>);
+    fn rows(&mut self, batch: Vec<Vec<Value>>);
+}
+
+/// The in-memory `RowSink`.
+pub struct QueryResult { pub columns: Vec<Column>, pub rows: Vec<Vec<Value>> }
+
+/// Drivers are synchronous; a `Session` runs them on their own thread.
+pub trait Driver: Send {
+    fn execute(&mut self, sql: &str, sink: &mut dyn RowSink) -> Result<Summary, EngineError>;
+    fn schema(&mut self) -> Result<Schema, EngineError>;
+    fn canceller(&self) -> Canceller;
 }
 ```
 
 - Results **stream** in batches through `RowSink`, so the grid fills in as rows arrive.
-- `CancelHandle` cancels on the server: Postgres sends its cancel request, MySQL runs `KILL QUERY` and SQLite uses its interrupt.
+- `Canceller` (a shared flag) cancels a running statement. SQLite stops through its progress handler (ADR 0007). Postgres sends its cancel request and MySQL runs `KILL QUERY` (both Phase 3).
 - Decimals are kept as exact strings and never rounded through a float.
 - `EngineError` is a typed `thiserror` enum. Every variant has a readable message for the user.
+- Drivers are synchronous and run on a `Session` thread; see ADR 0007.
+- `Session` runs a `Driver` on its own thread and streams `RunEvent`s (`Started`, `Columns`, `Rows`, `Finished`, `Failed`, `Done`). See ADR 0007.
 
 ## 4. UI and interaction design
 
 ### 4.1 Visual language: Aurora
 
-- **Aurora (dark) is the default.** A deep indigo-to-teal gradient behind native frosted-glass panels (GPUI's blurred window background), with floating panels that have 10 px rounded corners and 1 px light inner borders.
+- **Aurora (dark) is the default.** A deep indigo-to-teal gradient behind native frosted-glass panels (GPUI's blurred window background; blur is progressive enhancement, opaque until verified, ADR 0008), with floating panels that have 10 px rounded corners and 1 px light inner borders.
 - **The accent** is a violet-to-blue gradient (`#8b6cff → #5b8cff`) with a soft glow. Success is teal (`#5eead4`), warnings amber (`#fbbf24`) and errors orange (`#fb923c`).
 - **Syntax colors:** keywords violet, functions teal, strings amber, numbers pink, comments dim italic.
 - **Aurora Dawn (light):** a pearly lavender-to-mint wash behind frosted white panels, with the same accents darkened enough to stay readable.
-- **Typography:** SF Pro for the interface and SF Mono for code and numbers. Numbers in the grid line up by digit.
+- **Typography:** SF Pro for the interface and Menlo for code and numbers (SF Mono isn't loadable by name; see ADR 0008). Numbers in the grid line up by digit.
+- **Colors:** Colors are defined once per theme by semantic role in `ui-kit` and checked for WCAG contrast in CI.
 - **Theme setting:** Dark / Light / Match System, in Settings and in View › Theme (⌘⇧T). Switching cross-fades over 250 ms.
 - **Motion:** brief and purposeful. Every animation respects the macOS *Reduce Motion* setting.
 
@@ -134,7 +145,7 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
 
 **Workspace (three columns)**
 
-1. **Sidebar** (frosted glass, toggled with ⌘\\)
+1. **Sidebar** (frosted glass, toggled with ⌘\\; ⌘1 focuses it and ⌘2 returns to the editor)
    - A Playground/Connections switch.
    - Tracks, each with a progress ring.
    - The schema tree: tables with row counts, and columns with their types. Clicking a table opens it in a browse tab. Dragging a name into the editor inserts it as text, which is a manual action and not autocomplete.
@@ -293,7 +304,7 @@ A coverage matrix in `content/COVERAGE.md` maps every concept to at least two ch
 | `engine`, `challenges`, `store` | ≥ 95% | ≥ 90% |
 | `ui-kit`, `app` | ≥ 80% | ≥ 70% |
 
-**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges` and `store`. PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
+**Mutation testing** (`cargo-mutants`) runs on `engine`, `challenges`, `store` and the `app` view models and sample database (`crates/app/src/model` and `crates/app/src/sample`, ADR 0009). PRs test only the changed code, and the whole codebase runs weekly. Gate: at least 90% of introduced bugs caught.
 
 ### 7.4 Linting and supply chain
 

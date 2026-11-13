@@ -3,7 +3,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 coverage_report := "target/llvm-cov/coverage.json"
-core_packages := "-p quarry-engine -p quarry-challenges -p quarry-store"
+core_packages := "-p quarry-engine -p quarry-challenges -p quarry-store -p quarry"
 
 default: check
 

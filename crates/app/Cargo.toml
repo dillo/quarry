@@ -6,9 +6,21 @@ rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "quarry"
 path = "src/main.rs"
+
+[dependencies]
+async-channel.workspace = true
+gpui-kit = { workspace = true, features = ["assets"] }
+quarry-engine = { path = "../engine" }
+quarry-ui-kit = { path = "../ui-kit" }
+
+[dev-dependencies]
+gpui-kit = { workspace = true, features = ["test-support", "assets"] }
 
 [lints]
 workspace = true
