@@ -29,7 +29,8 @@ These come from the parent spec and bind every task.
   - `store` depends on no workspace crate apart from `engine`, and 1D needs none.
   - `xtask check-deps` enforces all three.
 - **Coverage and mutation testing:**
-  - `engine`, `store`, `crates/app/src/model` and `crates/app/src/sample` have 100% line coverage and are mutation-tested; the gate is at least 90% of mutants caught.
+  - `engine` and `store` need at least 95% lines and 90% regions; the app needs at least 80% lines and 70% regions; every file in `crates/app/src/model` stays at 100%.
+  - Mutation testing finds 0 missed in `engine`, `store`, `crates/app/src/model` and `crates/app/src/sample`.
   - Views are covered by GPUI tests.
 - **No `unwrap`/`expect`/`panic!`/`unreachable!` outside `#[test]` functions**, test helpers included.
 - **Polling:** GPUI code never awaits a session channel. It polls with `model::drain` every `POLL` (33 ms). Background work uses GPUI's executor, so tests stay deterministic.
@@ -94,7 +95,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 |---|---|
 | `tabs.rs` | `TabList`: the ordered tab ids, the active index, and a "Query N" name taking the next N after the highest one in use. Also the `open`, `close` (closing the last tab opens a fresh one), `next` and `previous` (both wrap) and `activate` rules. |
 | `statements.rs` | `RunOutput`: splits one run's `RunEvent`s into a `StatementOutput` per statement. Each holds the index, a label (number plus first words, 24 characters at most, whitespace collapsed), its columns, its rows (`ROW_LIMIT` cap and a truncated count), and either a `Summary` or an `EngineError`. Replaces 1C's `RunModel`. |
-| `messages.rs` | One `MessageLine { statement, text, is_error }` per statement: "N rows · t", "N rows affected · t", "Done · t", the error text, or "Cancelled". |
+| `messages.rs` | One `MessageLine { label, text, is_error }` per statement: "N rows · t", "N rows affected · t", "Done · t", the error text, or "Cancelled". |
 | `plan_tree.rs` | Flattens a `Plan` into `PlanRow { depth, label }`, depth first; `PlanState` (Idle, Planning, Ready, Failed) is what the Plan view shows. |
 | `status.rs` (changed) | Adds the waiting state ("Waiting for the previous run…") and "N statements · t" for a finished multi-statement run (M7). `failure` returns `Failure { message, cancelled }` (M14). |
 | `drain.rs` (changed) | `reply` turns a drained one-off reply (a schema or a plan) into its answer, or `WorkerGone`. |
@@ -135,7 +136,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 
 - **One `Session`, queued runs.** The session thread runs queued scripts in order.
 - **Waiting status:** a tab whose run has had no `Started` yet shows "Waiting for the previous run…".
-- **Cancel:** ⌘. cancels the active tab's run.
+- **Cancel:** ⌘. cancels the active tab's run. A run still queued behind another tab's is dropped at once and reads "Cancelled"; it changed nothing, so the schema is not re-read.
 - **Run (⌘↵)** runs the selection or the statement under the cursor, using 1C's `run_target`, and selects the Results view.
 - **Run all (⌘⇧R)** sends the whole editor text.
   - Each statement that returns rows gets a result tab (the strip appears once there are two), and the first such tab is selected.
@@ -151,7 +152,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 
 ### 4.2 Explain (⌘E)
 
-- ⌘E calls `session.plan` on the run target and selects the Plan view.
+- ⌘E calls `session.plan` on the run target and selects the Plan view. When the target holds several statements, only the first is planned (the session cuts the text with the splitter, so every driver behaves alike).
 - The Plan view shows `plan_tree` rows indented by depth in Menlo.
 - An error, including `PlanUnsupported`, is shown as a message inside the Plan view, not in the run banner.
 - Explain does not change the tab's run output.
@@ -175,6 +176,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
 | Store file is from a newer Quarry | The same warning, with "Saved by a newer Quarry (version N)". The file is never modified. |
 | A save fails | The same warning. Saving is retried on the next edit, and the warning clears after a successful save. |
 | Plan unsupported or failed | A message inside the Plan view. |
+| ⌘. on a queued run | The run is dropped and reads "Cancelled" at once; the run ahead of it carries on. |
 | Run fails mid-script | Earlier statements keep their outputs. Messages marks the failing line. The banner is shown. |
 | Session channel closes without `Done` | `WorkerGone`, as in 1C, now covered by a view test with an injected channel. |
 
