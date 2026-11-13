@@ -41,7 +41,11 @@ impl Workspace {
     pub(super) fn close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
         let closing = self.tabs.active_id();
         let opened = self.tabs.close(closing);
-        self.views.remove(&closing);
+        let closed = self.views.remove(&closing);
+        // A run that is cut off never emits `RunEnded`, so read the schema for it.
+        if closed.is_some_and(|tab| tab.read(cx).output(cx).is_running()) {
+            self.read_schema(cx);
+        }
         if let Some(id) = opened {
             self.add_view(id, "", window, cx);
         }

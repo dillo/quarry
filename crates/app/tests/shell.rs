@@ -103,7 +103,11 @@ fn closing_the_last_window_is_noticed(cx: &mut TestAppContext) {
     let windows = cx.windows();
     assert!(!closed.get());
     for window in windows {
-        let _ = window.update(cx, |_, window, _| window.remove_window());
+        assert!(
+            window
+                .update(cx, |_, window, _| window.remove_window())
+                .is_ok()
+        );
     }
     cx.run_until_parked();
     assert!(closed.get());

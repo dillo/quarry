@@ -16,7 +16,7 @@ use crate::{
         drain::{Drained, drain},
         statements::StatementOutput,
     },
-    views::workspace::POLL,
+    views::{results, workspace::POLL},
 };
 
 impl QueryTab {
@@ -47,7 +47,8 @@ impl QueryTab {
         !ended
     }
 
-    /// A script whose statements returned no rows opens on its messages.
+    /// A script whose statements returned no rows opens on its messages,
+    /// unless the user has picked another view while it ran.
     fn run_ended(&mut self, cx: &mut Context<Self>) {
         self.run = None;
         let rows = self
@@ -55,8 +56,8 @@ impl QueryTab {
             .statements()
             .iter()
             .any(StatementOutput::returns_rows);
-        if self.scope == RunScope::Script && !rows {
-            self.select_view("messages", cx);
+        if self.scope == RunScope::Script && !rows && self.view_id() == results::RESULTS {
+            self.select_view(results::MESSAGES, cx);
         }
         cx.emit(QueryTabEvent::RunEnded);
     }

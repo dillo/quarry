@@ -23,7 +23,7 @@ impl SqliteStore {
     ///
     /// # Errors
     /// Returns [`StoreError::Open`] when the file cannot be opened, or a
-    /// migration error (see [`migrations::migrate`]).
+    /// migration error when the file is from a newer Quarry or is damaged.
     pub fn open(path: &Path) -> Result<Self, StoreError> {
         let open_error = |message: String| StoreError::Open {
             path: path.display().to_string(),

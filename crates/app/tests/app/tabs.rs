@@ -3,7 +3,7 @@
 
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
@@ -232,7 +232,47 @@ fn a_store_that_failed_to_load_is_never_saved_over(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("cmd-t");
     settle(cx, |_, _| true);
     assert!(!saved.load(Ordering::SeqCst));
-    cx.update(|_, cx| assert!(workspace.read(cx).drafts_problem().is_some()));
+    cx.update(|_, cx| {
+        assert_eq!(
+            workspace.read(cx).drafts_problem(),
+            Some("file is not a database")
+        );
+    });
+}
+
+/// A store whose first save fails and whose later saves succeed.
+struct Flaky {
+    saves: AtomicUsize,
+}
+
+impl DraftStore for Flaky {
+    fn load(&self) -> Result<Drafts, StoreError> {
+        Ok(Drafts::default())
+    }
+
+    fn save(&self, _: &Drafts) -> Result<(), StoreError> {
+        match self.saves.fetch_add(1, Ordering::SeqCst) {
+            0 => Err(StoreError::Sql("disk full".to_owned())),
+            _ => Ok(()),
+        }
+    }
+}
+
+#[gpui_kit::test]
+fn the_warning_clears_after_a_later_save_succeeds(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(Flaky {
+        saves: AtomicUsize::new(0),
+    });
+    let (_workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_input("SELECT 1");
+    cx.executor().advance_clock(AUTOSAVE);
+    settle(cx, |_, _| true);
+    assert!(drawn(cx, "drafts-warning"));
+    cx.simulate_input(" + 1");
+    cx.executor().advance_clock(AUTOSAVE);
+    settle(cx, |_, _| true);
+    assert!(!drawn(cx, "drafts-warning"));
 }
 
 #[gpui_kit::test]

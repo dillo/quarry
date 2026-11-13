@@ -6,7 +6,7 @@ use gpui_kit::{
 };
 use quarry_ui_kit::components::tabs::{Tab, tab_bar};
 
-use super::ResultView;
+use super::{RESULTS, ResultView};
 use crate::views::query_tab::QueryTab;
 
 /// The grid of the statement chosen in the strip above it.
@@ -19,7 +19,7 @@ pub fn statement_tab_id(index: usize) -> ElementId {
 
 impl ResultView for ResultsView {
     fn id(&self) -> &'static str {
-        "results"
+        RESULTS
     }
 
     fn title(&self) -> &'static str {

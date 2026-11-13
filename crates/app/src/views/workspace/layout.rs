@@ -103,15 +103,13 @@ impl Workspace {
         let summary = status::run_summary(output, output.elapsed(Instant::now()));
         let cursor = tab.editor().read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
-        let warning = self.drafts_problem().map(drafts_warning);
+        let mut bar = StatusBar::new().left(format!("● {}", self.database));
+        if let Some(problem) = self.drafts_problem() {
+            bar = bar.left(drafts_warning(problem));
+        }
         div()
             .id("status")
-            .child(
-                StatusBar::new()
-                    .left(format!("● {}", self.database))
-                    .left(div().children(warning))
-                    .right(format!("{summary} · {place}")),
-            )
+            .child(bar.right(format!("{summary} · {place}")))
             .into_any_element()
     }
 }

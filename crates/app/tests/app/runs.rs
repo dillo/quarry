@@ -7,9 +7,12 @@ use quarry::{
         plan_tree::{PlanRow, PlanState},
         statements::Phase,
     },
-    views::results::statement_tab_id,
+    views::{
+        query_tab::RunScope,
+        results::{self, statement_tab_id},
+    },
 };
-use quarry_engine::error::EngineError;
+use quarry_engine::{error::EngineError, session::RunEvent};
 
 use super::support::{drawn, open, phase, run_with, settle, write};
 
@@ -35,9 +38,41 @@ fn run_all_gives_each_row_returning_statement_a_result_tab(cx: &mut TestAppConte
             (tab.view_id(), grid.delegate().shown())
         })
     };
-    assert_eq!(shown(cx), ("results", 2));
+    assert_eq!(shown(cx), (results::RESULTS, 2));
     cx.update(|window, cx| window.click(statement_tab_id(3), cx));
-    assert_eq!(shown(cx), ("results", 3));
+    assert_eq!(shown(cx), (results::RESULTS, 3));
+}
+
+#[gpui_kit::test]
+fn switching_result_tabs_clears_the_grid_selection(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(&workspace, cx, MIXED);
+    run_with(&workspace, cx, "cmd-shift-r");
+    let results = cx.update(|_, cx| workspace.read(cx).active_tab().read(cx).results().clone());
+    cx.update(|_, cx| results.update(cx, |table, cx| table.set_selected_row(1, cx)));
+    cx.update(|window, cx| window.click(statement_tab_id(3), cx));
+    cx.update(|_, cx| assert_eq!(results.read(cx).selected_row(), None));
+}
+
+#[gpui_kit::test]
+fn a_view_picked_during_a_script_survives_its_end(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    let (sender, events) = async_channel::unbounded();
+    let tab = cx.update(|_, cx| workspace.read(cx).active_tab().clone());
+    cx.update(|_, cx| {
+        tab.update(cx, |tab, cx| {
+            tab.follow(
+                "CREATE TABLE t (x)".to_owned(),
+                RunScope::Script,
+                events,
+                cx,
+            );
+            tab.select_view(results::PLAN, cx);
+        });
+    });
+    assert!(sender.try_send(RunEvent::Done).is_ok());
+    settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
+    cx.update(|_, cx| assert_eq!(tab.read(cx).view_id(), results::PLAN));
 }
 
 #[gpui_kit::test]
@@ -66,10 +101,10 @@ fn a_script_without_rows_opens_on_its_messages(cx: &mut TestAppContext) {
     cx.update(|_, cx| {
         assert_eq!(
             workspace.read(cx).active_tab().read(cx).view_id(),
-            "messages"
+            results::MESSAGES
         );
     });
-    assert!(drawn(cx, "messages"));
+    assert!(drawn(cx, results::MESSAGES));
 }
 
 #[gpui_kit::test]
@@ -101,7 +136,7 @@ fn the_view_switch_shows_messages(cx: &mut TestAppContext) {
     cx.update(|_, cx| {
         assert_eq!(
             workspace.read(cx).active_tab().read(cx).view_id(),
-            "messages"
+            results::MESSAGES
         );
     });
 }
@@ -175,9 +210,12 @@ fn command_e_shows_the_statement_plan(cx: &mut TestAppContext) {
     }];
     assert_eq!(plan(cx), PlanState::Ready(rows));
     cx.update(|_, cx| {
-        assert_eq!(workspace.read(cx).active_tab().read(cx).view_id(), "plan");
+        assert_eq!(
+            workspace.read(cx).active_tab().read(cx).view_id(),
+            results::PLAN
+        );
     });
-    assert!(drawn(cx, "plan"));
+    assert!(drawn(cx, results::PLAN));
 }
 
 #[gpui_kit::test]

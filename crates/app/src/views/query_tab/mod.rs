@@ -20,7 +20,7 @@ use quarry_engine::session::{RunEvent, RunHandle};
 
 use super::{
     editor,
-    results::{ResultViewRegistry, ResultsDelegate},
+    results::{self, ResultViewRegistry, ResultsDelegate},
 };
 use crate::model::{
     plan_tree::PlanState,
@@ -131,6 +131,9 @@ impl QueryTab {
 
     /// Shows the run of `script` whose events arrive on `events`, in the
     /// Results view.
+    ///
+    /// This is the seam tests use to inject a channel of their own. Such a
+    /// run has no [`RunHandle`], so Cancel does nothing to it.
     pub fn follow(
         &mut self,
         script: String,
@@ -140,7 +143,7 @@ impl QueryTab {
     ) {
         self.run = None;
         self.scope = scope;
-        self.select_view("results", cx);
+        self.select_view(results::RESULTS, cx);
         self.results.update(cx, |table, cx| {
             table.delegate_mut().reset(RunOutput::submitted(script));
             table.clear_selection(cx);
@@ -181,6 +184,8 @@ impl QueryTab {
     pub fn show_statement(&mut self, index: usize, cx: &mut Context<Self>) {
         self.results.update(cx, |table, cx| {
             table.delegate_mut().show(index);
+            table.clear_selection(cx);
+            table.scroll_to_row(0, cx);
             table.refresh(cx);
             cx.notify();
         });

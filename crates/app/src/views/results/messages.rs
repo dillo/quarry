@@ -9,7 +9,7 @@ use quarry_ui_kit::{
     tokens::{MONO_FONT, space, text},
 };
 
-use super::ResultView;
+use super::{MESSAGES, ResultView};
 use crate::{
     model::messages::{self, MessageLine},
     views::query_tab::QueryTab,
@@ -23,7 +23,7 @@ pub struct MessagesView;
 
 impl ResultView for MessagesView {
     fn id(&self) -> &'static str {
-        "messages"
+        MESSAGES
     }
 
     fn title(&self) -> &'static str {
@@ -44,7 +44,7 @@ impl ResultView for MessagesView {
             lines.into_iter().map(|line| message(line, cx)).collect()
         };
         div()
-            .id("messages")
+            .id(MESSAGES)
             .size_full()
             .overflow_y_scroll()
             .p(px(space::MD))

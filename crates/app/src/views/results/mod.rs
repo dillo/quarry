@@ -16,6 +16,13 @@ pub use self::{
 };
 use super::query_tab::QueryTab;
 
+/// The id of the Results view.
+pub const RESULTS: &str = "results";
+/// The id of the Messages view.
+pub const MESSAGES: &str = "messages";
+/// The id of the Plan view.
+pub const PLAN: &str = "plan";
+
 /// One view of a tab's run.
 pub trait ResultView {
     /// A stable name, such as "messages".

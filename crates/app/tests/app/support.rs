@@ -6,11 +6,11 @@ use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::Tes
 use quarry::{
     model::statements::Phase,
     sample,
-    shell::{actions, store::Forgetful},
+    shell::actions,
     views::workspace::{POLL, SavedTabs, Workspace},
 };
 use quarry_engine::error::EngineError;
-use quarry_store::drafts::DraftStore;
+use quarry_store::drafts::{DraftStore, Forgetful};
 use quarry_ui_kit::{Aurora, Preference};
 
 /// How long a test waits for the session thread before giving up.

@@ -8,12 +8,11 @@ use std::{sync::Arc, time::Duration};
 
 use gpui_kit::{App, AppContext, Context, WindowId};
 use quarry_store::{
-    drafts::{Draft, DraftStore, Drafts},
+    drafts::{Draft, DraftStore, Drafts, Forgetful},
     error::StoreError,
 };
 
 use super::Workspace;
-use crate::shell::store::Forgetful;
 
 /// How long after the last edit the drafts are saved.
 pub const AUTOSAVE: Duration = Duration::from_secs(1);

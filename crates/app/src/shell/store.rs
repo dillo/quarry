@@ -5,11 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use quarry_store::{
-    drafts::{DraftStore, Drafts},
-    error::StoreError,
-    sqlite::SqliteStore,
-};
+use quarry_store::{drafts::Forgetful, sqlite::SqliteStore};
 
 use crate::views::workspace::SavedTabs;
 
@@ -44,18 +40,5 @@ fn forgetful(problem: String) -> SavedTabs {
     SavedTabs {
         store: Arc::new(Forgetful),
         problem: Some(problem),
-    }
-}
-
-/// A store that keeps nothing: it loads no tabs and every save succeeds.
-pub struct Forgetful;
-
-impl DraftStore for Forgetful {
-    fn load(&self) -> Result<Drafts, StoreError> {
-        Ok(Drafts::default())
-    }
-
-    fn save(&self, _: &Drafts) -> Result<(), StoreError> {
-        Ok(())
     }
 }

@@ -26,7 +26,12 @@ pub struct TabList {
 impl TabList {
     /// Restores saved tabs; with none, opens "Query 1". `active` is clamped.
     pub fn restore(tabs: Vec<Tab>, active: usize) -> Self {
-        let next_id = tabs.iter().map(|tab| tab.id).max().unwrap_or(0) + 1;
+        let next_id = tabs
+            .iter()
+            .map(|tab| tab.id)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1);
         let mut list = Self {
             active: active.min(tabs.len().saturating_sub(1)),
             tabs,
@@ -110,7 +115,7 @@ impl TabList {
             .filter_map(|tab| tab.title.strip_prefix(TITLE_PREFIX)?.parse::<u64>().ok())
             .max()
             .unwrap_or(0)
-            + 1
+            .saturating_add(1)
     }
 }
 

@@ -9,7 +9,7 @@ use quarry_ui_kit::{
     tokens::{MONO_FONT, space, text},
 };
 
-use super::ResultView;
+use super::{PLAN, ResultView};
 use crate::{
     model::plan_tree::{PlanRow, PlanState},
     views::query_tab::QueryTab,
@@ -23,7 +23,7 @@ pub struct PlanView;
 
 impl ResultView for PlanView {
     fn id(&self) -> &'static str {
-        "plan"
+        PLAN
     }
 
     fn title(&self) -> &'static str {
@@ -50,7 +50,7 @@ impl ResultView for PlanView {
             PlanState::Ready(rows) => rows.iter().map(step).collect(),
         };
         div()
-            .id("plan")
+            .id(PLAN)
             .size_full()
             .overflow_y_scroll()
             .p(px(space::MD))
