@@ -5605,7 +5605,9 @@ dependencies = [
  "async-channel",
  "gpui-kit",
  "quarry-engine",
+ "quarry-store",
  "quarry-ui-kit",
+ "tempfile",
 ]
 
 [[package]]

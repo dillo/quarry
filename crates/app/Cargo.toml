@@ -17,10 +17,12 @@ path = "src/main.rs"
 async-channel.workspace = true
 gpui-kit = { workspace = true, features = ["assets"] }
 quarry-engine = { path = "../engine" }
+quarry-store = { path = "../store" }
 quarry-ui-kit = { path = "../ui-kit" }
 
 [dev-dependencies]
 gpui-kit = { workspace = true, features = ["test-support", "assets"] }
+tempfile.workspace = true
 
 [lints]
 workspace = true

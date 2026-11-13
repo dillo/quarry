@@ -19,16 +19,17 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(sql) = self.tab.read(cx).target_sql(cx) else {
+        let tab = self.active_tab().clone();
+        let Some(sql) = tab.read(cx).target_sql(cx) else {
             return;
         };
         let handle = self.session.run(sql.clone());
-        self.tab.update(cx, |tab, cx| tab.start(sql, handle, cx));
+        tab.update(cx, |tab, cx| tab.start(sql, handle, cx));
         cx.notify();
     }
 
     pub(super) fn cancel(&mut self, _: &CancelRun, _: &mut Window, cx: &mut Context<Self>) {
-        self.tab.read(cx).cancel();
+        self.active_tab().read(cx).cancel();
     }
 
     /// Reads the schema after any queued runs and shows it in the sidebar.

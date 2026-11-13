@@ -3,8 +3,9 @@
 use std::time::Instant;
 
 use gpui_kit::{
-    AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
+    AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
+    StatefulInteractiveElement, Styled, TestSupportExt, Window, component::tooltip::Tooltip, div,
+    prelude::FluentBuilder, px,
 };
 use quarry_ui_kit::{
     Aurora, Role,
@@ -33,6 +34,10 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::run_statement))
             .on_action(cx.listener(Self::cancel))
+            .on_action(cx.listener(Self::new_tab))
+            .on_action(cx.listener(Self::close_tab))
+            .on_action(cx.listener(Self::next_tab))
+            .on_action(cx.listener(Self::previous_tab))
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::focus_sidebar))
             .on_action(cx.listener(Self::focus_editor))
@@ -78,31 +83,44 @@ impl Workspace {
             .h_full()
             .flex()
             .flex_col()
-            .pt(px(chrome::TITLEBAR_HEIGHT))
+            .child(self.tab_strip(cx))
             .child(
                 div()
                     .flex_1()
                     .px(px(space::MD))
                     .pb(px(space::SM))
-                    .child(self.tab.clone()),
+                    .child(self.active_tab().clone()),
             )
             .child(self.status_bar(cx))
             .into_any_element()
     }
 
     fn status_bar(&self, cx: &Context<Self>) -> AnyElement {
-        let tab = self.tab.read(cx);
+        let tab = self.active_tab().read(cx);
         let output = tab.output(cx);
         let summary = status::run_summary(output, output.elapsed(Instant::now()));
         let cursor = tab.editor().read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
+        let warning = self.drafts_problem().map(drafts_warning);
         div()
             .id("status")
             .child(
                 StatusBar::new()
                     .left(format!("● {}", self.database))
+                    .left(div().children(warning))
                     .right(format!("{summary} · {place}")),
             )
             .into_any_element()
     }
+}
+
+/// The quiet warning that drafts aren't being saved, with the reason on hover.
+fn drafts_warning(problem: &str) -> AnyElement {
+    let reason = SharedString::from(problem.to_owned());
+    div()
+        .id("drafts-warning")
+        .child("Drafts aren't being saved")
+        .tooltip(move |window, cx| Tooltip::new(reason.clone()).build(window, cx))
+        .test_support()
+        .into_any_element()
 }

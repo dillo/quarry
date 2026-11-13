@@ -9,8 +9,11 @@ mod pump;
 
 use async_channel::Receiver;
 use gpui_kit::{
-    App, AppContext, Context, Entity, EventEmitter, Task, Window,
-    component::{input::EditorState, table::TableState},
+    App, AppContext, Context, Entity, EventEmitter, Subscription, Task, Window,
+    component::{
+        input::{EditorState, InputEvent},
+        table::TableState,
+    },
 };
 use quarry_engine::session::{RunEvent, RunHandle};
 
@@ -22,6 +25,8 @@ use crate::model::{statements::RunOutput, target};
 pub enum QueryTabEvent {
     /// The tab's run ended; the schema may have changed.
     RunEnded,
+    /// The user changed the editor's text.
+    Edited,
 }
 
 /// A query tab.
@@ -30,6 +35,7 @@ pub struct QueryTab {
     results: Entity<TableState<ResultsDelegate>>,
     run: Option<RunHandle>,
     pump: Option<Task<()>>,
+    _edits: Subscription,
 }
 
 impl EventEmitter<QueryTabEvent> for QueryTab {}
@@ -41,17 +47,29 @@ impl QueryTab {
         // would end up over the wrong data.
         let results =
             cx.new(|cx| TableState::new(ResultsDelegate::default(), window, cx).col_movable(false));
+        let editor = editor::new_editor(text, window, cx);
+        let edits = cx.subscribe(&editor, |_, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                cx.emit(QueryTabEvent::Edited);
+            }
+        });
         Self {
-            editor: editor::new_editor(text, window, cx),
+            editor,
             results,
             run: None,
             pump: None,
+            _edits: edits,
         }
     }
 
     /// The editor, so callers can focus it or read its text.
     pub fn editor(&self) -> &Entity<EditorState> {
         &self.editor
+    }
+
+    /// The editor's text.
+    pub fn text(&self, cx: &App) -> String {
+        self.editor.read(cx).value().to_string()
     }
 
     /// The latest run.

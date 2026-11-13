@@ -1,7 +1,7 @@
 //! The workspace in a headless window: running, cancelling, the schema tree
 //! and the window commands.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use gpui_kit::{
     App, Entity, Focusable, TestAppContext, VisualTestContext, Window,
@@ -10,10 +10,10 @@ use gpui_kit::{
 use quarry::{
     model::statements::Phase,
     sample,
-    shell::actions,
+    shell::{actions, store::Forgetful},
     views::{
         schema::table_row_id,
-        workspace::{POLL, Workspace},
+        workspace::{POLL, SavedTabs, Workspace},
     },
 };
 use quarry_engine::{error::EngineError, session::RunEvent};
@@ -33,8 +33,12 @@ fn open(
     });
     assert_eq!(installed, Ok(()));
     let session = sample::open()?;
+    let saved = SavedTabs {
+        store: Arc::new(Forgetful),
+        problem: None,
+    };
     let (workspace, cx) =
-        cx.add_window_view(|window, cx| Workspace::new(session, sample::NAME, window, cx));
+        cx.add_window_view(|window, cx| Workspace::new(session, sample::NAME, saved, window, cx));
     cx.update(|window, cx| {
         let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));
