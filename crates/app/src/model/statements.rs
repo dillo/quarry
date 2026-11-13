@@ -166,6 +166,7 @@ impl RunOutput {
         if !matches!(self.phase, Phase::Failed(_)) {
             self.phase = Phase::Failed(EngineError::WorkerGone);
         }
+        self.fail_unfinished();
     }
 
     /// Where the run is.
@@ -188,13 +189,30 @@ impl RunOutput {
         matches!(self.phase, Phase::Waiting | Phase::Running)
     }
 
-    /// The whole run's time: from the first statement starting until `Done`,
-    /// or until `now` while it goes on. Zero before any statement starts, so
-    /// time spent queued behind another run never counts.
+    /// The whole run's time. While it goes on: from the first statement
+    /// starting until `now`. Once it has ended: the larger of the wall time
+    /// until `Done` and the sum of the statements' own times, because the
+    /// timestamps the view passes are only as precise as its poll, and a
+    /// fast run can otherwise read zero. The live reading never exceeds the
+    /// final one, so the time never jumps backwards. Zero before any
+    /// statement starts, so time spent queued never counts.
     pub fn elapsed(&self, now: Instant) -> Duration {
-        let end = self.ended_at.unwrap_or(now);
-        self.started_at
-            .map_or(Duration::ZERO, |start| end.saturating_duration_since(start))
+        let Some(start) = self.started_at else {
+            return Duration::ZERO;
+        };
+        match self.ended_at {
+            Some(end) => end.saturating_duration_since(start).max(self.engine_time()),
+            None => now.saturating_duration_since(start),
+        }
+    }
+
+    /// The sum of the times the engine reported for finished statements.
+    fn engine_time(&self) -> Duration {
+        self.statements
+            .iter()
+            .filter_map(|statement| statement.outcome().and_then(|o| o.as_ref().ok()))
+            .map(|summary| summary.elapsed)
+            .sum()
     }
 
     fn begin(&mut self, index: usize, range: &std::ops::Range<usize>, now: Instant) {
@@ -233,6 +251,16 @@ impl RunOutput {
         } else {
             Phase::Finished
         };
+        self.fail_unfinished();
+    }
+
+    /// Every statement without an outcome was lost with the worker.
+    fn fail_unfinished(&mut self) {
+        for statement in &mut self.statements {
+            statement
+                .outcome
+                .get_or_insert(Err(EngineError::WorkerGone));
+        }
     }
 }
 
@@ -437,6 +465,49 @@ mod tests {
         output.apply(RunEvent::Finished(summary(3)), at(1600));
         output.apply(RunEvent::Done, at(1700));
         assert_eq!(output.elapsed(at(9000)), Duration::from_millis(700));
+    }
+
+    #[test]
+    fn a_vanished_worker_fails_the_statement_it_left_unfinished() {
+        let mut done = RunOutput::submitted(SCRIPT);
+        feed(&mut done, vec![started(0), RunEvent::Done]);
+        let gone = Some(&Err(EngineError::WorkerGone));
+        assert_eq!(done.statements()[0].outcome(), gone);
+        let mut closed = RunOutput::submitted(SCRIPT);
+        feed(&mut closed, vec![started(0)]);
+        closed.end_closed();
+        assert_eq!(closed.statements()[0].outcome(), gone);
+    }
+
+    #[test]
+    fn a_closed_channel_keeps_earlier_outcomes() {
+        let mut output = RunOutput::submitted(SCRIPT);
+        let error = EngineError::Sql("boom".to_owned());
+        feed(
+            &mut output,
+            vec![
+                started(0),
+                RunEvent::Finished(summary(1)),
+                started(1),
+                RunEvent::Failed(error.clone()),
+            ],
+        );
+        output.end_closed();
+        assert_eq!(output.statements()[0].outcome(), Some(&Ok(summary(1))));
+        assert_eq!(output.statements()[1].outcome(), Some(&Err(error)));
+    }
+
+    #[test]
+    fn a_finished_run_is_never_shorter_than_its_statements_own_time() {
+        let now = Instant::now();
+        let mut output = RunOutput::submitted(SCRIPT);
+        output.apply(started(0), now);
+        output.apply(RunEvent::Finished(summary(2)), now);
+        output.apply(started(1), now);
+        output.apply(RunEvent::Finished(summary(3)), now);
+        assert_eq!(output.elapsed(now), Duration::ZERO, "live reading");
+        output.apply(RunEvent::Done, now);
+        assert_eq!(output.elapsed(now), Duration::from_millis(5));
     }
 
     #[test]

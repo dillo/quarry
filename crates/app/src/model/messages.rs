@@ -103,4 +103,23 @@ mod tests {
         output.apply(RunEvent::Failed(EngineError::Cancelled), Instant::now());
         assert_eq!(lines(&output), [line("1 · SELECT 1", "Cancelled", false)]);
     }
+
+    #[test]
+    fn a_vanished_workers_statement_is_an_error_line() {
+        let mut output = RunOutput::submitted("SELECT 1");
+        let started = RunEvent::Started {
+            index: 0,
+            range: 0..8,
+        };
+        output.apply(started, Instant::now());
+        output.end_closed();
+        assert_eq!(
+            lines(&output),
+            [line(
+                "1 · SELECT 1",
+                &EngineError::WorkerGone.to_string(),
+                true
+            )]
+        );
+    }
 }
