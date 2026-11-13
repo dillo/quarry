@@ -30,8 +30,8 @@ pub trait Driver: Send {
     /// Returns an error when the catalog cannot be read.
     fn schema(&mut self) -> Result<Schema, EngineError>;
 
-    /// Describes how the database would run the first statement in `sql`,
-    /// without running it.
+    /// Describes how the database would run `sql`, without running it. The
+    /// session passes a single statement, the first one in the selection.
     ///
     /// # Errors
     /// Returns [`EngineError::PlanUnsupported`] unless the driver overrides

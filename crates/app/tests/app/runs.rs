@@ -1,6 +1,9 @@
 //! Run all, Explain, the result views, and runs queued across tabs.
 
-use gpui_kit::{TestAppContext, test::TestWindowExt};
+use std::{cell::Cell, rc::Rc};
+
+use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
+use quarry::views::workspace::Workspace;
 use quarry::{
     model::{
         messages,
@@ -8,7 +11,7 @@ use quarry::{
         statements::Phase,
     },
     views::{
-        query_tab::RunScope,
+        query_tab::{QueryTabEvent, RunScope},
         results::{self, statement_tab_id},
     },
 };
@@ -166,6 +169,22 @@ fn a_run_in_another_tab_waits_for_the_running_one(cx: &mut TestAppContext) {
     assert_eq!(phase(&workspace, cx), Phase::Finished);
 }
 
+/// Sets the returned flag once the active tab emits `RunEnded`.
+fn record_run_ends(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Rc<Cell<bool>> {
+    let tab = workspace.read_with(cx, |workspace, _| workspace.active_tab().clone());
+    let ended = Rc::new(Cell::new(false));
+    let flag = Rc::clone(&ended);
+    cx.update(|_, cx| {
+        cx.subscribe(&tab, move |_, event: &QueryTabEvent, _| {
+            if *event == QueryTabEvent::RunEnded {
+                flag.set(true);
+            }
+        })
+        .detach();
+    });
+    ended
+}
+
 #[gpui_kit::test]
 fn cancelling_a_queued_run_ends_it_while_the_other_tab_still_runs(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
@@ -183,8 +202,10 @@ fn cancelling_a_queued_run_ends_it_while_the_other_tab_still_runs(cx: &mut TestA
     cx.simulate_keystrokes("cmd-enter");
     settle(cx, |_, _| true);
     assert_eq!(phase(&workspace, cx), Phase::Waiting);
+    let ended = record_run_ends(&workspace, cx);
     cx.simulate_keystrokes("cmd-.");
     assert_eq!(phase(&workspace, cx), Phase::Failed(EngineError::Cancelled));
+    assert!(ended.get());
     cx.simulate_keystrokes("cmd-{");
     assert_eq!(phase(&workspace, cx), Phase::Running);
 }

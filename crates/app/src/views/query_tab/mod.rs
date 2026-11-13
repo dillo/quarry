@@ -195,8 +195,9 @@ impl QueryTab {
     ///
     /// A run still queued behind another tab's would otherwise keep reading
     /// "Waiting" until that run ended, so it is dropped on the spot: its
-    /// handle and pump go, and it shows as cancelled. It changed nothing, so
-    /// it emits no `RunEnded`.
+    /// handle and pump go, and it shows as cancelled. The session may have
+    /// started it within the last poll, so it emits `RunEnded` and the
+    /// workspace re-reads the schema.
     pub fn cancel(&mut self, cx: &mut Context<Self>) {
         let Some(handle) = &self.run else {
             return;
@@ -209,6 +210,7 @@ impl QueryTab {
                 table.delegate_mut().cancel_queued();
                 cx.notify();
             });
+            cx.emit(QueryTabEvent::RunEnded);
             cx.notify();
         }
     }
