@@ -3967,7 +3967,7 @@ git commit -m "refactor(app): move the editor and its run into a query tab"
 
 ### Task 6: Query tabs and saved drafts
 
-⌘T, ⌘W, ⌘⇧] and ⌘⇧[ open, close and switch tabs, drawn as a strip in the title bar. Drafts load at start and save one second after the last edit (each edit restarts the timer), at once when tabs change, and when Quarry quits; saves run on the background executor one after another. `shell::store` opens `~/Library/Application Support/Quarry/quarry.db`; if it can't, a `Forgetful` store keeps nothing and the status bar says "Drafts aren't being saved", with the reason on hover.
+⌘T, ⌘W, ⌘⇧] and ⌘⇧[ open, close and switch tabs, drawn as a strip in the title bar. Drafts load at start and save one second after the last edit (each edit restarts the timer), at once when tabs change, and when Quarry quits; saves run on the background executor one after another. `shell::store` opens `~/Library/Application Support/Quarry/quarry.db`; if it can't, a `Forgetful` store keeps nothing and the status bar says "Drafts aren't being saved", with the reason on hover. If the file opens but its drafts can't be loaded, the workspace falls back to `Forgetful` the same way, so a save never overwrites drafts still on disk; closing the window saves at once, like quitting.
 
 **Files:**
 - Modify: `crates/app/Cargo.toml`
@@ -4072,7 +4072,13 @@ Create `crates/app/tests/tabs.rs`:
 //! Query tabs: opening, closing and switching them, and keeping their
 //! drafts across restarts.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
 use quarry::{
@@ -4315,6 +4321,51 @@ fn a_failing_store_shows_a_warning(cx: &mut TestAppContext) {
         window.draw(cx).clear(cx);
         assert!(window.try_find("drafts-warning").is_some());
     });
+}
+
+/// A store whose load fails but whose save would succeed, noting any save.
+struct Unreadable {
+    saved: Arc<AtomicBool>,
+}
+
+impl DraftStore for Unreadable {
+    fn load(&self) -> Result<Drafts, StoreError> {
+        Err(StoreError::Sql("file is not a database".to_owned()))
+    }
+
+    fn save(&self, _: &Drafts) -> Result<(), StoreError> {
+        self.saved.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[gpui_kit::test]
+fn a_store_that_failed_to_load_is_never_saved_over(cx: &mut TestAppContext) {
+    install(cx);
+    let saved = Arc::new(AtomicBool::new(false));
+    let store = Arc::new(Unreadable {
+        saved: Arc::clone(&saved),
+    });
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_input("SELECT 1");
+    cx.executor().advance_clock(AUTOSAVE);
+    settle(cx, |_, _| true);
+    cx.simulate_keystrokes("cmd-t");
+    settle(cx, |_, _| true);
+    assert!(!saved.load(Ordering::SeqCst));
+    cx.update(|_, cx| assert!(workspace.read(cx).drafts_problem().is_some()));
+}
+
+#[gpui_kit::test]
+fn closing_the_window_saves_the_last_edits(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_input("SELECT 9");
+    cx.update(|window, _| window.remove_window());
+    cx.run_until_parked();
+    let loaded = store.load().expect("the drafts load");
+    assert!(loaded.tabs[0].text.starts_with("SELECT 9"));
 }
 ```
 
@@ -4664,20 +4715,21 @@ diff --git a/crates/app/src/views/query_tab/mod.rs b/crates/app/src/views/query_
 Create `crates/app/src/views/workspace/drafts.rs`:
 ```rust
 //! Saving the tabs' drafts: a second after the last edit, at once when the
-//! tabs change, and when Quarry quits.
+//! tabs change, when the window closes and when Quarry quits.
 //!
 //! Writes run on the background executor, one after another, so a later
 //! snapshot never lands before an earlier one.
 
 use std::{sync::Arc, time::Duration};
 
-use gpui_kit::{App, AppContext, Context};
+use gpui_kit::{App, AppContext, Context, WindowId};
 use quarry_store::{
     drafts::{Draft, DraftStore, Drafts},
     error::StoreError,
 };
 
 use super::Workspace;
+use crate::shell::store::Forgetful;
 
 /// How long after the last edit the drafts are saved.
 pub const AUTOSAVE: Duration = Duration::from_secs(1);
@@ -4690,7 +4742,35 @@ pub struct SavedTabs {
     pub problem: Option<String>,
 }
 
+impl SavedTabs {
+    /// The store to use, the drafts it holds and the warning to show. A store
+    /// that cannot be read is replaced by one that keeps nothing, so a later
+    /// save never overwrites what it holds.
+    pub(super) fn open(self) -> (Arc<dyn DraftStore>, Drafts, Option<String>) {
+        match self.store.load() {
+            Ok(drafts) => (self.store, drafts, self.problem),
+            Err(error) => (
+                Arc::new(Forgetful),
+                Drafts::default(),
+                self.problem.or(Some(error.to_string())),
+            ),
+        }
+    }
+}
+
 impl Workspace {
+    /// Saves the drafts when the window `id` closes, so edits from the last
+    /// second are not lost with the pending autosave.
+    pub(super) fn save_on_close(id: WindowId, cx: &mut Context<Self>) {
+        let this = cx.weak_entity();
+        cx.on_window_closed(move |cx, closed| {
+            if closed == id {
+                let _ = this.read_with(cx, Workspace::save_before_quit);
+            }
+        })
+        .detach();
+    }
+
     /// Why drafts aren't being saved, if they aren't.
     pub fn drafts_problem(&self) -> Option<&str> {
         self.save_problem
@@ -4882,7 +4962,7 @@ diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/worksp
      shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
  };
  
-@@ -32,57 +40,89 @@ pub const POLL: Duration = Duration::from_millis(33);
+@@ -32,57 +40,87 @@ pub const POLL: Duration = Duration::from_millis(33);
  pub const SIDEBAR_WIDTH: f32 = 240.0;
  
  /// The main window's content.
@@ -4923,18 +5003,15 @@ diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/worksp
 -            QueryTabEvent::RunEnded => workspace.read_schema(cx),
 -        })
 -        .detach();
-+        let (drafts, load_problem) = match saved.store.load() {
-+            Ok(drafts) => (drafts, None),
-+            Err(error) => (Drafts::default(), Some(error.to_string())),
-+        };
++        let (store, drafts, problem) = saved.open();
          let mut workspace = Self {
              session,
              database: database.to_owned(),
 -            tab,
 +            tabs: restored_tabs(&drafts),
 +            views: BTreeMap::new(),
-+            store: saved.store,
-+            open_problem: saved.problem.or(load_problem),
++            store,
++            open_problem: problem,
 +            save_problem: None,
 +            autosave: None,
 +            saving: None,
@@ -4950,6 +5027,7 @@ diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/worksp
          };
 +        workspace.add_views(&drafts, window, cx);
          workspace.read_schema(cx);
++        Self::save_on_close(window.window_handle().window_id(), cx);
          workspace
      }
  
@@ -4985,7 +5063,7 @@ diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/worksp
      }
  
      /// The sidebar's schema tree.
-@@ -130,6 +170,19 @@ fn focus_first_stop(container: &FocusHandle, window: &mut Window, cx: &mut App)
+@@ -130,6 +168,19 @@ fn focus_first_stop(container: &FocusHandle, window: &mut Window, cx: &mut App)
      window.focus_next(cx);
  }
  
@@ -5173,7 +5251,7 @@ impl Workspace {
 - [ ] **Step 4: Run the tests and every gate**
 
 Run: `cargo nextest run -p quarry`
-Expected: every app test passes, including 9 in `tests/tabs.rs` and 6 in `tests/shell.rs`.
+Expected: every app test passes, including 11 in `tests/tabs.rs` and 6 in `tests/shell.rs`.
 
 Run: `just check`
 Expected: exit 0.
@@ -5476,17 +5554,25 @@ pub fn drawn(cx: &mut VisualTestContext, id: impl Into<gpui_kit::ElementId>) -> 
 Move `crates/app/tests/tabs.rs` to `crates/app/tests/app/tabs.rs` and change it by applying this patch with `git apply` (the patch does the move itself; don't `git mv` first):
 ```diff
 diff --git a/crates/app/tests/tabs.rs b/crates/app/tests/app/tabs.rs
-similarity index 78%
+similarity index 81%
 rename from crates/app/tests/tabs.rs
 rename to crates/app/tests/app/tabs.rs
 --- a/crates/app/tests/tabs.rs
 +++ b/crates/app/tests/app/tabs.rs
-@@ -1,25 +1,20 @@
+@@ -1,31 +1,23 @@
  //! Query tabs: opening, closing and switching them, and keeping their
  //! drafts across restarts.
  
--use std::{sync::Arc, time::Duration};
-+use std::sync::Arc;
+-use std::{
+-    sync::{
+-        Arc,
+-        atomic::{AtomicBool, Ordering},
+-    },
+-    time::Duration,
++use std::sync::{
++    Arc,
++    atomic::{AtomicBool, Ordering},
+ };
  
 -use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
 +use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
@@ -5511,7 +5597,7 @@ rename to crates/app/tests/app/tabs.rs
  
  /// A store whose every read and write fails.
  struct Broken;
-@@ -34,47 +29,6 @@ impl DraftStore for Broken {
+@@ -40,47 +32,6 @@ impl DraftStore for Broken {
      }
  }
  
@@ -5559,7 +5645,7 @@ rename to crates/app/tests/app/tabs.rs
  fn titles(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<String> {
      cx.update(|_, cx| {
          let tabs = workspace.read(cx).tabs().tabs();
-@@ -239,9 +193,8 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
+@@ -245,11 +196,10 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
  fn a_failing_store_shows_a_warning(cx: &mut TestAppContext) {
      install(cx);
      let (workspace, cx) = open(cx, Arc::new(Broken)).expect("the sample database opens");
@@ -5571,6 +5657,8 @@ rename to crates/app/tests/app/tabs.rs
      });
 +    assert!(drawn(cx, "drafts-warning"));
  }
+ 
+ /// A store whose load fails but whose save would succeed, noting any save.
 ```
 
 Move `crates/app/tests/workspace.rs` to `crates/app/tests/app/workspace.rs` and change it by applying this patch with `git apply` (the patch does the move itself; don't `git mv` first):
@@ -6356,7 +6444,7 @@ diff --git a/crates/app/src/views/workspace/runs.rs b/crates/app/src/views/works
 - [ ] **Step 4: Run the tests and every gate**
 
 Run: `cargo nextest run -p quarry`
-Expected: every app test passes; `tests/app` runs 31 tests.
+Expected: every app test passes; `tests/app` runs 33 tests.
 
 Run: `just check`
 Expected: exit 0.
@@ -6952,7 +7040,7 @@ diff --git a/crates/app/src/views/workspace/runs.rs b/crates/app/src/views/works
 - [ ] **Step 4: Run the tests and every gate**
 
 Run: `cargo nextest run -p quarry`
-Expected: every app test passes; `tests/app` runs 33 tests.
+Expected: every app test passes; `tests/app` runs 35 tests.
 
 Run: `just check`
 Expected: exit 0.
@@ -7121,8 +7209,8 @@ Phase 1D turns the single editor of Phase 1C (ADR 0009) into query tabs whose dr
 - **Per-statement output.** `model::statements::RunOutput` keeps every statement's columns, rows (up to 100,000), and summary or error. The grid shows the first statement that returns rows. With more than one, a strip of result tabs picks between them, and Messages lists every statement. The status bar times the whole run, from its first statement starting until `Done`, and leaves out time spent queued behind another tab. Events are timestamped when the UI polls them (every 33 ms), so the final figure is the larger of that wall time and the statements' own engine times added up; a fast script reads its real time, and the figure never jumps backwards. Each statement's own engine time is in Messages.
 - **Result views are a registry.** `ResultView` and `ResultViewRegistry` hold Results, Messages and Plan; a new view is a module and one line. A segmented control switches between them.
 - **Plans come from the driver.** `Driver::plan` defaults to `PlanUnsupported`. SQLite builds a tree from `EXPLAIN QUERY PLAN`, and `Session::plan` runs it on the session thread after any queued run, like `schema()`.
-- **Drafts live in `quarry-store`.** `DraftStore` loads and saves `Drafts` (tabs and the active index); `SqliteStore` keeps them in `~/Library/Application Support/Quarry/quarry.db`, migrated with `PRAGMA user_version`. A file from a newer Quarry is refused, never changed. If the store can't be opened, `shell::store` falls back to a store that keeps nothing, and the status bar says drafts aren't being saved.
-- **When drafts are saved.** One second after the last edit (each edit replaces the pending timer), at once when tabs open, close or switch, and synchronously when Quarry quits. Saves run on the background executor one after another, so an older snapshot never lands after a newer one.
+- **Drafts live in `quarry-store`.** `DraftStore` loads and saves `Drafts` (tabs and the active index); `SqliteStore` keeps them in `~/Library/Application Support/Quarry/quarry.db`, migrated with `PRAGMA user_version`. A file from a newer Quarry is refused, never changed. If the store can't be opened, `shell::store` falls back to a store that keeps nothing, and the status bar says drafts aren't being saved. If it opens but its drafts can't be read, the workspace falls back the same way, so a save never writes a fresh tab over drafts that are still on disk.
+- **When drafts are saved.** One second after the last edit (each edit replaces the pending timer), at once when tabs open, close or switch, and synchronously when the window closes or Quarry quits. Saves run on the background executor one after another, so an older snapshot never lands after a newer one.
 - **Streaming throughput.** The session buffers 128 batches of 500 rows per run instead of 16. With the UI polling every 33 ms, the 200,000-row sample table streams in about 0.16 s instead of about 1 s; the engine's own time drops from about 0.93 s to 0.12 s, because it no longer waits on the reader.
 - **App lifecycle.** The shell follows the system appearance and quits when the last window closes.
 
@@ -7207,7 +7295,7 @@ diff --git a/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md b/do
 -- **Quit when the last window closes** (M13).
 -- **Opening the store:** if it fails, the workspace gets a store that keeps drafts in memory, and the warning reason is shown (§5).
 +- **Quit when the last window closes** (M13): `on_last_window_closed` takes the action to run, so tests can observe it.
-+- **Opening the store (`shell::store`):** if it fails, the workspace gets `Forgetful`, a store that keeps nothing, and the warning reason is shown (§5). The tabs themselves stay open for the session.
++- **Opening the store (`shell::store`):** if it fails, or the drafts can't be loaded from it, the workspace gets `Forgetful`, a store that keeps nothing, and the warning reason is shown (§5). The file is never written over, and the tabs themselves stay open for the session.
  
  ## 4. Behaviour
  
@@ -7231,16 +7319,27 @@ diff --git a/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md b/do
  
  ### 4.2 Explain (⌘E)
  
-@@ -162,8 +162,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
+@@ -162,9 +162,8 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
  - **⌘T** opens an empty "Query N" after the active tab and focuses its editor.
  - **⌘W** closes the active tab without a prompt and activates its right neighbour, or its left neighbour if it was last. Closing the only tab replaces it with a fresh empty "Query N".
  - **Saving:**
 -  - Edits call `Autosave::edited`.
 -  - A save happens 1 s after the last edit.
+-  - It also happens straight away on ⌘T, ⌘W, a tab switch and app quit.
 +  - Each edit (the editor's change event) restarts a 1 s timer (`AUTOSAVE`); when it fires, the drafts are saved.
-   - It also happens straight away on ⌘T, ⌘W, a tab switch and app quit.
++  - It also happens straight away on ⌘T, ⌘W, a tab switch, closing the window and app quit.
    - Saves run on GPUI's background executor.
  - **What is saved:** titles, texts, order and the active index. Results, cursors and selections are not saved.
+ 
+@@ -172,7 +171,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
+ 
+ | Situation | Behaviour |
+ |---|---|
+-| Store can't be opened (permissions, corrupt file) | Drafts are kept in memory. The status bar shows "Drafts aren't being saved", with the error as its tooltip. |
++| Store can't be opened or its drafts can't be loaded (permissions, corrupt file, locked) | Drafts are kept in memory. The status bar shows "Drafts aren't being saved", with the error as its tooltip. |
+ | Store file is from a newer Quarry | The same warning, with "Saved by a newer Quarry (version N)". The file is never modified. |
+ | A save fails | The same warning. Saving is retried on the next edit, and the warning clears after a successful save. |
+ | Plan unsupported or failed | A message inside the Plan view. |
 @@ -192,7 +191,7 @@ pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>
    - the default `plan` returns `PlanUnsupported`;
    - `Session::plan` after a queued run.
