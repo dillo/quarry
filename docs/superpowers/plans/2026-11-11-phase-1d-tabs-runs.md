@@ -1376,7 +1376,7 @@ git commit -m "feat(app): add the tab list model"
 
 ### Task 4: Model: per-statement output, messages and plan rows
 
-`RunOutput` replaces 1C's `RunModel`: it keeps every statement's columns, rows (100,000 at most), and summary or error, plus a Waiting phase for a run queued behind another. `messages` gives one line per statement; `plan_tree` flattens a `Plan`. The status bar times the whole run, from the first statement's start until `Done`, so queued time never counts (M7); `failure` returns a `Failure` struct (M14); `cell_text` truncates before copying and maps every control character to a space (M4); `RunModel` and its unused `Clone` go (M6). The grid and status bar switch to `RunOutput` in the same task so the tree stays green.
+`RunOutput` replaces 1C's `RunModel`: it keeps every statement's columns, rows (100,000 at most), and summary or error, plus a Waiting phase for a run queued behind another. `messages` gives one line per statement; `plan_tree` flattens a `Plan`. The status bar times the whole run, from the first statement's start until `Done`, so queued time never counts (M7); `failure` returns a `Failure` struct (M14); `cell_text` truncates before copying and maps every control character to a space (M4); `RunModel` and its unused `Clone` go (M6). A worker that vanishes mid-run marks its unfinished statement `WorkerGone`, and a finished run's time is never less than its statements' own engine times, since polled timestamps are only as precise as the poll. The grid and status bar switch to `RunOutput` in the same task so the tree stays green.
 
 **Files:**
 - Modify: `crates/app/src/model/drain.rs`
@@ -1662,6 +1662,25 @@ mod tests {
         output.apply(RunEvent::Failed(EngineError::Cancelled), Instant::now());
         assert_eq!(lines(&output), [line("1 · SELECT 1", "Cancelled", false)]);
     }
+
+    #[test]
+    fn a_vanished_workers_statement_is_an_error_line() {
+        let mut output = RunOutput::submitted("SELECT 1");
+        let started = RunEvent::Started {
+            index: 0,
+            range: 0..8,
+        };
+        output.apply(started, Instant::now());
+        output.end_closed();
+        assert_eq!(
+            lines(&output),
+            [line(
+                "1 · SELECT 1",
+                &EngineError::WorkerGone.to_string(),
+                true
+            )]
+        );
+    }
 }
 ```
 
@@ -1937,6 +1956,7 @@ impl RunOutput {
         if !matches!(self.phase, Phase::Failed(_)) {
             self.phase = Phase::Failed(EngineError::WorkerGone);
         }
+        self.fail_unfinished();
     }
 
     /// Where the run is.
@@ -1959,13 +1979,30 @@ impl RunOutput {
         matches!(self.phase, Phase::Waiting | Phase::Running)
     }
 
-    /// The whole run's time: from the first statement starting until `Done`,
-    /// or until `now` while it goes on. Zero before any statement starts, so
-    /// time spent queued behind another run never counts.
+    /// The whole run's time. While it goes on: from the first statement
+    /// starting until `now`. Once it has ended: the larger of the wall time
+    /// until `Done` and the sum of the statements' own times, because the
+    /// timestamps the view passes are only as precise as its poll, and a
+    /// fast run can otherwise read zero. The live reading never exceeds the
+    /// final one, so the time never jumps backwards. Zero before any
+    /// statement starts, so time spent queued never counts.
     pub fn elapsed(&self, now: Instant) -> Duration {
-        let end = self.ended_at.unwrap_or(now);
-        self.started_at
-            .map_or(Duration::ZERO, |start| end.saturating_duration_since(start))
+        let Some(start) = self.started_at else {
+            return Duration::ZERO;
+        };
+        match self.ended_at {
+            Some(end) => end.saturating_duration_since(start).max(self.engine_time()),
+            None => now.saturating_duration_since(start),
+        }
+    }
+
+    /// The sum of the times the engine reported for finished statements.
+    fn engine_time(&self) -> Duration {
+        self.statements
+            .iter()
+            .filter_map(|statement| statement.outcome().and_then(|o| o.as_ref().ok()))
+            .map(|summary| summary.elapsed)
+            .sum()
     }
 
     fn begin(&mut self, index: usize, range: &std::ops::Range<usize>, now: Instant) {
@@ -2004,6 +2041,16 @@ impl RunOutput {
         } else {
             Phase::Finished
         };
+        self.fail_unfinished();
+    }
+
+    /// Every statement without an outcome was lost with the worker.
+    fn fail_unfinished(&mut self) {
+        for statement in &mut self.statements {
+            statement
+                .outcome
+                .get_or_insert(Err(EngineError::WorkerGone));
+        }
     }
 }
 
@@ -2208,6 +2255,49 @@ mod tests {
         output.apply(RunEvent::Finished(summary(3)), at(1600));
         output.apply(RunEvent::Done, at(1700));
         assert_eq!(output.elapsed(at(9000)), Duration::from_millis(700));
+    }
+
+    #[test]
+    fn a_vanished_worker_fails_the_statement_it_left_unfinished() {
+        let mut done = RunOutput::submitted(SCRIPT);
+        feed(&mut done, vec![started(0), RunEvent::Done]);
+        let gone = Some(&Err(EngineError::WorkerGone));
+        assert_eq!(done.statements()[0].outcome(), gone);
+        let mut closed = RunOutput::submitted(SCRIPT);
+        feed(&mut closed, vec![started(0)]);
+        closed.end_closed();
+        assert_eq!(closed.statements()[0].outcome(), gone);
+    }
+
+    #[test]
+    fn a_closed_channel_keeps_earlier_outcomes() {
+        let mut output = RunOutput::submitted(SCRIPT);
+        let error = EngineError::Sql("boom".to_owned());
+        feed(
+            &mut output,
+            vec![
+                started(0),
+                RunEvent::Finished(summary(1)),
+                started(1),
+                RunEvent::Failed(error.clone()),
+            ],
+        );
+        output.end_closed();
+        assert_eq!(output.statements()[0].outcome(), Some(&Ok(summary(1))));
+        assert_eq!(output.statements()[1].outcome(), Some(&Err(error)));
+    }
+
+    #[test]
+    fn a_finished_run_is_never_shorter_than_its_statements_own_time() {
+        let now = Instant::now();
+        let mut output = RunOutput::submitted(SCRIPT);
+        output.apply(started(0), now);
+        output.apply(RunEvent::Finished(summary(2)), now);
+        output.apply(started(1), now);
+        output.apply(RunEvent::Finished(summary(3)), now);
+        assert_eq!(output.elapsed(now), Duration::ZERO, "live reading");
+        output.apply(RunEvent::Done, now);
+        assert_eq!(output.elapsed(now), Duration::from_millis(5));
     }
 
     #[test]
@@ -2860,7 +2950,7 @@ diff --git a/crates/app/src/views/workspace/runner.rs b/crates/app/src/views/wor
 - [ ] **Step 4: Run the tests and every gate**
 
 Run: `cargo nextest run -p quarry`
-Expected: every app test passes (60 unit tests, plus the existing integration tests).
+Expected: every app test passes (64 unit tests, plus the existing integration tests).
 
 Run: `just check`
 Expected: exit 0.
@@ -7028,7 +7118,7 @@ Phase 1D turns the single editor of Phase 1C (ADR 0009) into query tabs whose dr
 ## Decision
 - **One `QueryTab` entity per tab.** Each tab owns its editor, its run and its results, so switching tabs keeps undo history, scroll position and output. The workspace keeps the session, the sidebar, the `TabList` model and the status bar, and submits runs on the active tab's behalf.
 - **Runs queue on the one session.** A tab whose run is queued behind another tab's reads "Waiting for the previous run…" until its first statement starts. ⌘. cancels only the active tab's run.
-- **Per-statement output.** `model::statements::RunOutput` keeps every statement's columns, rows (up to 100,000), and summary or error. The grid shows the first statement that returns rows. With more than one, a strip of result tabs picks between them, and Messages lists every statement. The status bar times the whole run, from its first statement starting until `Done`, both live and at the end, so the figure never jumps backwards and leaves out time spent queued behind another tab. Each statement's own engine time is in Messages.
+- **Per-statement output.** `model::statements::RunOutput` keeps every statement's columns, rows (up to 100,000), and summary or error. The grid shows the first statement that returns rows. With more than one, a strip of result tabs picks between them, and Messages lists every statement. The status bar times the whole run, from its first statement starting until `Done`, and leaves out time spent queued behind another tab. Events are timestamped when the UI polls them (every 33 ms), so the final figure is the larger of that wall time and the statements' own engine times added up; a fast script reads its real time, and the figure never jumps backwards. Each statement's own engine time is in Messages.
 - **Result views are a registry.** `ResultView` and `ResultViewRegistry` hold Results, Messages and Plan; a new view is a module and one line. A segmented control switches between them.
 - **Plans come from the driver.** `Driver::plan` defaults to `PlanUnsupported`. SQLite builds a tree from `EXPLAIN QUERY PLAN`, and `Session::plan` runs it on the session thread after any queued run, like `schema()`.
 - **Drafts live in `quarry-store`.** `DraftStore` loads and saves `Drafts` (tabs and the active index); `SqliteStore` keeps them in `~/Library/Application Support/Quarry/quarry.db`, migrated with `PRAGMA user_version`. A file from a newer Quarry is refused, never changed. If the store can't be opened, `shell::store` falls back to a store that keeps nothing, and the status bar says drafts aren't being saved.
@@ -7136,7 +7226,7 @@ diff --git a/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md b/do
  - **Schema refresh:** after every run, the schema sidebar refreshes, as in 1C.
 -- **Status-bar time:** the timer measures from submission to `Done`, both while running and at the end (M7). Each statement's own time appears in Messages.
 -- **Throughput (M2):** when a drain empties a full `EVENT_BUFFER`, the pump drains again straight away, up to 8 times per tick. The 200k-row stream time is measured before and after and recorded in ADR 0010.
-+- **Status-bar time (M7):** the timer measures from the first statement's `Started` to `Done`, both while running and at the end. Time spent queued behind another tab's run isn't counted. Each statement's own time appears in Messages.
++- **Status-bar time (M7):** the timer measures from the first statement's `Started` to `Done`, both while running and at the end; the final figure is never less than the statements' own times added up, because polled timestamps are only as precise as the 33 ms poll. Time spent queued behind another tab's run isn't counted. Each statement's own time appears in Messages.
 +- **Throughput (M2):** the session's `EVENT_BUFFER` grows from 16 to 128 batches. Measured with a 33 ms poll, the 200k-row stream drops from about 1.0 s to 0.16 s (recorded in ADR 0010). Re-polling within a tick was considered, but the worker refills too slowly between immediate re-polls for it to help.
  
  ### 4.2 Explain (⌘E)
