@@ -210,7 +210,6 @@ Expected: `unresolved import quarry_store::drafts` (the crate is empty).
 Change `crates/store/Cargo.toml` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/store/Cargo.toml b/crates/store/Cargo.toml
-index bd58dae..26077ba 100644
 --- a/crates/store/Cargo.toml
 +++ b/crates/store/Cargo.toml
 @@ -6,5 +6,12 @@ rust-version.workspace = true
@@ -338,7 +337,6 @@ mod tests {
 Change `crates/store/src/lib.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/store/src/lib.rs b/crates/store/src/lib.rs
-index f9a524b..98f0a22 100644
 --- a/crates/store/src/lib.rs
 +++ b/crates/store/src/lib.rs
 @@ -1 +1,9 @@
@@ -726,7 +724,6 @@ Expected: `unresolved import quarry_engine::plan`.
 Change `crates/engine/src/driver.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/driver.rs b/crates/engine/src/driver.rs
-index ff987d8..0b5708f 100644
 --- a/crates/engine/src/driver.rs
 +++ b/crates/engine/src/driver.rs
 @@ -7,6 +7,7 @@ use std::sync::{
@@ -760,7 +757,6 @@ index ff987d8..0b5708f 100644
 Change `crates/engine/src/error.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/error.rs b/crates/engine/src/error.rs
-index 90c2425..f00ca5b 100644
 --- a/crates/engine/src/error.rs
 +++ b/crates/engine/src/error.rs
 @@ -23,6 +23,9 @@ pub enum EngineError {
@@ -789,7 +785,6 @@ index 90c2425..f00ca5b 100644
 Change `crates/engine/src/lib.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/lib.rs b/crates/engine/src/lib.rs
-index 33f0f2b..6fc584a 100644
 --- a/crates/engine/src/lib.rs
 +++ b/crates/engine/src/lib.rs
 @@ -5,6 +5,7 @@
@@ -919,7 +914,6 @@ mod tests {
 Change `crates/engine/src/session.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/session.rs b/crates/engine/src/session.rs
-index 1d3c4ce..ec2ca8d 100644
 --- a/crates/engine/src/session.rs
 +++ b/crates/engine/src/session.rs
 @@ -5,7 +5,7 @@
@@ -1033,7 +1027,6 @@ pub(super) fn plan(connection: &Connection, sql: &str) -> Result<Plan, EngineErr
 Change `crates/engine/src/sqlite/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/sqlite/mod.rs b/crates/engine/src/sqlite/mod.rs
-index 3276784..e12426b 100644
 --- a/crates/engine/src/sqlite/mod.rs
 +++ b/crates/engine/src/sqlite/mod.rs
 @@ -1,6 +1,7 @@
@@ -1103,7 +1096,6 @@ The pure rules for query tabs: their order, "Query N" titles (one more than the 
 Change `crates/app/src/model/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/mod.rs b/crates/app/src/model/mod.rs
-index fb1ade6..fc2e01c 100644
 --- a/crates/app/src/model/mod.rs
 +++ b/crates/app/src/model/mod.rs
 @@ -8,4 +8,5 @@ pub mod format;
@@ -1410,7 +1402,6 @@ git commit -m "feat(app): add the tab list model"
 Change `crates/app/tests/workspace.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/workspace.rs b/crates/app/tests/workspace.rs
-index 6719011..4ed7017 100644
 --- a/crates/app/tests/workspace.rs
 +++ b/crates/app/tests/workspace.rs
 @@ -8,7 +8,7 @@ use gpui_kit::{
@@ -1498,7 +1489,6 @@ Expected: (unit tests beside the code; write them first and see `cannot find typ
 Change `crates/app/src/model/drain.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/drain.rs b/crates/app/src/model/drain.rs
-index a442e44..659d9e0 100644
 --- a/crates/app/src/model/drain.rs
 +++ b/crates/app/src/model/drain.rs
 @@ -1,8 +1,9 @@
@@ -1518,7 +1508,6 @@ index a442e44..659d9e0 100644
 Change `crates/app/src/model/format.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/format.rs b/crates/app/src/model/format.rs
-index 5a960de..f316e00 100644
 --- a/crates/app/src/model/format.rs
 +++ b/crates/app/src/model/format.rs
 @@ -7,15 +7,28 @@ use quarry_engine::value::Value;
@@ -1679,7 +1668,6 @@ mod tests {
 Change `crates/app/src/model/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/mod.rs b/crates/app/src/model/mod.rs
-index fc2e01c..6b84815 100644
 --- a/crates/app/src/model/mod.rs
 +++ b/crates/app/src/model/mod.rs
 @@ -5,8 +5,10 @@
@@ -2260,7 +2248,6 @@ mod tests {
 Change `crates/app/src/model/status.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/status.rs b/crates/app/src/model/status.rs
-index 9c7faa1..b9875a7 100644
 --- a/crates/app/src/model/status.rs
 +++ b/crates/app/src/model/status.rs
 @@ -1,4 +1,4 @@
@@ -2580,7 +2567,6 @@ index 9c7faa1..b9875a7 100644
 Change `crates/app/src/views/results.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/results.rs b/crates/app/src/views/results.rs
-index 8843fa4..7c6af57 100644
 --- a/crates/app/src/views/results.rs
 +++ b/crates/app/src/views/results.rs
 @@ -1,4 +1,4 @@
@@ -2733,7 +2719,6 @@ index 8843fa4..7c6af57 100644
 Change `crates/app/src/views/workspace/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/layout.rs b/crates/app/src/views/workspace/layout.rs
-index f1b0c62..c750dd5 100644
 --- a/crates/app/src/views/workspace/layout.rs
 +++ b/crates/app/src/views/workspace/layout.rs
 @@ -25,7 +25,10 @@ use quarry_ui_kit::{
@@ -2803,7 +2788,6 @@ index f1b0c62..c750dd5 100644
 Change `crates/app/src/views/workspace/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/workspace/mod.rs
-index fb17e8b..9a113a8 100644
 --- a/crates/app/src/views/workspace/mod.rs
 +++ b/crates/app/src/views/workspace/mod.rs
 @@ -17,7 +17,7 @@ use quarry_ui_kit::Aurora;
@@ -2833,7 +2817,6 @@ index fb17e8b..9a113a8 100644
 Change `crates/app/src/views/workspace/runner.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/runner.rs b/crates/app/src/views/workspace/runner.rs
-index e7a69c4..71e2831 100644
 --- a/crates/app/src/views/workspace/runner.rs
 +++ b/crates/app/src/views/workspace/runner.rs
 @@ -15,7 +15,7 @@ use super::{POLL, Workspace};
@@ -2922,7 +2905,6 @@ No change in behaviour: today's single editor, grid and run move out of `Workspa
 Change `crates/app/tests/workspace.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/workspace.rs b/crates/app/tests/workspace.rs
-index 4ed7017..b1bc7a3 100644
 --- a/crates/app/tests/workspace.rs
 +++ b/crates/app/tests/workspace.rs
 @@ -16,36 +16,37 @@ use quarry::{
@@ -3163,7 +3145,6 @@ index 4ed7017..b1bc7a3 100644
 Change `crates/engine/tests/session.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/tests/session.rs b/crates/engine/tests/session.rs
-index 75664bd..2d48556 100644
 --- a/crates/engine/tests/session.rs
 +++ b/crates/engine/tests/session.rs
 @@ -5,7 +5,7 @@ use quarry_engine::{
@@ -3218,7 +3199,6 @@ Expected: the two new tests fail to compile (`no method named follow`, `no metho
 Change `crates/app/src/shell/window.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/window.rs b/crates/app/src/shell/window.rs
-index 7819f7c..1f69dff 100644
 --- a/crates/app/src/shell/window.rs
 +++ b/crates/app/src/shell/window.rs
 @@ -5,7 +5,7 @@ use gpui_kit::{
@@ -3255,7 +3235,6 @@ index 7819f7c..1f69dff 100644
 Change `crates/app/src/views/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/mod.rs b/crates/app/src/views/mod.rs
-index 1d6521b..7e6b129 100644
 --- a/crates/app/src/views/mod.rs
 +++ b/crates/app/src/views/mod.rs
 @@ -1,6 +1,7 @@
@@ -3528,7 +3507,6 @@ impl QueryTab {
 Change `crates/app/src/views/workspace/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/layout.rs b/crates/app/src/views/workspace/layout.rs
-index c750dd5..c6a84bc 100644
 --- a/crates/app/src/views/workspace/layout.rs
 +++ b/crates/app/src/views/workspace/layout.rs
 @@ -1,40 +1,26 @@
@@ -3666,7 +3644,6 @@ index c750dd5..c6a84bc 100644
 Change `crates/app/src/views/workspace/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/workspace/mod.rs
-index 9a113a8..30e325b 100644
 --- a/crates/app/src/views/workspace/mod.rs
 +++ b/crates/app/src/views/workspace/mod.rs
 @@ -1,21 +1,25 @@
@@ -3864,7 +3841,6 @@ fn schema_answer(
 Change `crates/engine/src/session.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/engine/src/session.rs b/crates/engine/src/session.rs
-index ec2ca8d..4c8da44 100644
 --- a/crates/engine/src/session.rs
 +++ b/crates/engine/src/session.rs
 @@ -44,7 +44,9 @@ use crate::{
@@ -3931,7 +3907,6 @@ git commit -m "refactor(app): move the editor and its run into a query tab"
 Change `crates/app/tests/shell.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/shell.rs b/crates/app/tests/shell.rs
-index 2c0c34c..2432c60 100644
 --- a/crates/app/tests/shell.rs
 +++ b/crates/app/tests/shell.rs
 @@ -1,8 +1,11 @@
@@ -4256,7 +4231,6 @@ fn a_failing_store_shows_a_warning(cx: &mut TestAppContext) {
 Change `crates/app/tests/workspace.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/workspace.rs b/crates/app/tests/workspace.rs
-index b1bc7a3..0ca436a 100644
 --- a/crates/app/tests/workspace.rs
 +++ b/crates/app/tests/workspace.rs
 @@ -1,7 +1,7 @@
@@ -4308,7 +4282,6 @@ Expected: `unresolved import quarry::views::workspace::SavedTabs` and friends.
 Change `crates/app/Cargo.toml` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/Cargo.toml b/crates/app/Cargo.toml
-index e807290..ce303fa 100644
 --- a/crates/app/Cargo.toml
 +++ b/crates/app/Cargo.toml
 @@ -17,10 +17,12 @@ path = "src/main.rs"
@@ -4329,7 +4302,6 @@ index e807290..ce303fa 100644
 Change `crates/app/src/main.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/main.rs b/crates/app/src/main.rs
-index 2c1782e..93570ed 100644
 --- a/crates/app/src/main.rs
 +++ b/crates/app/src/main.rs
 @@ -1,7 +1,7 @@
@@ -4358,7 +4330,6 @@ index 2c1782e..93570ed 100644
 Change `crates/app/src/shell/actions.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/actions.rs b/crates/app/src/shell/actions.rs
-index 5064346..16c293b 100644
 --- a/crates/app/src/shell/actions.rs
 +++ b/crates/app/src/shell/actions.rs
 @@ -12,6 +12,14 @@ actions!(
@@ -4410,7 +4381,6 @@ index 5064346..16c293b 100644
 Change `crates/app/src/shell/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/mod.rs b/crates/app/src/shell/mod.rs
-index f12856c..cf182ac 100644
 --- a/crates/app/src/shell/mod.rs
 +++ b/crates/app/src/shell/mod.rs
 @@ -1,4 +1,6 @@
@@ -4491,7 +4461,6 @@ impl DraftStore for Forgetful {
 Change `crates/app/src/shell/window.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/window.rs b/crates/app/src/shell/window.rs
-index 1f69dff..8648585 100644
 --- a/crates/app/src/shell/window.rs
 +++ b/crates/app/src/shell/window.rs
 @@ -7,7 +7,10 @@ use gpui_kit::{
@@ -4535,7 +4504,6 @@ index 1f69dff..8648585 100644
 Change `crates/app/src/views/query_tab/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/query_tab/mod.rs b/crates/app/src/views/query_tab/mod.rs
-index f48da97..14c4cfa 100644
 --- a/crates/app/src/views/query_tab/mod.rs
 +++ b/crates/app/src/views/query_tab/mod.rs
 @@ -9,8 +9,11 @@ mod pump;
@@ -4700,7 +4668,6 @@ impl Workspace {
 Change `crates/app/src/views/workspace/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/layout.rs b/crates/app/src/views/workspace/layout.rs
-index c6a84bc..a1f7db8 100644
 --- a/crates/app/src/views/workspace/layout.rs
 +++ b/crates/app/src/views/workspace/layout.rs
 @@ -3,8 +3,9 @@
@@ -4779,7 +4746,6 @@ index c6a84bc..a1f7db8 100644
 Change `crates/app/src/views/workspace/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/mod.rs b/crates/app/src/views/workspace/mod.rs
-index 30e325b..f90882c 100644
 --- a/crates/app/src/views/workspace/mod.rs
 +++ b/crates/app/src/views/workspace/mod.rs
 @@ -1,27 +1,35 @@
@@ -4954,7 +4920,6 @@ index 30e325b..f90882c 100644
 Change `crates/app/src/views/workspace/runs.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/runs.rs b/crates/app/src/views/workspace/runs.rs
-index 053adcc..9949c90 100644
 --- a/crates/app/src/views/workspace/runs.rs
 +++ b/crates/app/src/views/workspace/runs.rs
 @@ -19,16 +19,17 @@ impl Workspace {
@@ -5424,7 +5389,6 @@ diff --git a/crates/app/tests/tabs.rs b/crates/app/tests/app/tabs.rs
 similarity index 78%
 rename from crates/app/tests/tabs.rs
 rename to crates/app/tests/app/tabs.rs
-index 44b7efe..5a248f2 100644
 --- a/crates/app/tests/tabs.rs
 +++ b/crates/app/tests/app/tabs.rs
 @@ -1,25 +1,20 @@
@@ -5525,7 +5489,6 @@ diff --git a/crates/app/tests/workspace.rs b/crates/app/tests/app/workspace.rs
 similarity index 73%
 rename from crates/app/tests/workspace.rs
 rename to crates/app/tests/app/workspace.rs
-index 0ca436a..31e0903 100644
 --- a/crates/app/tests/workspace.rs
 +++ b/crates/app/tests/app/workspace.rs
 @@ -1,89 +1,18 @@
@@ -5660,7 +5623,6 @@ index 0ca436a..31e0903 100644
 Change `crates/app/tests/shell.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/shell.rs b/crates/app/tests/shell.rs
-index 2432c60..82536ee 100644
 --- a/crates/app/tests/shell.rs
 +++ b/crates/app/tests/shell.rs
 @@ -49,7 +49,7 @@ fn every_menu_command_has_a_key_binding() {
@@ -5685,7 +5647,6 @@ Expected: `unresolved import quarry::views::results::statement_tab_id`.
 Change `crates/app/src/shell/actions.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/actions.rs b/crates/app/src/shell/actions.rs
-index 16c293b..576e5b9 100644
 --- a/crates/app/src/shell/actions.rs
 +++ b/crates/app/src/shell/actions.rs
 @@ -10,6 +10,8 @@ actions!(
@@ -5718,7 +5679,6 @@ index 16c293b..576e5b9 100644
 Change `crates/app/src/views/query_tab/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/query_tab/layout.rs b/crates/app/src/views/query_tab/layout.rs
-index 458f3a9..13a5240 100644
 --- a/crates/app/src/views/query_tab/layout.rs
 +++ b/crates/app/src/views/query_tab/layout.rs
 @@ -6,13 +6,12 @@ use gpui_kit::{
@@ -5802,7 +5762,6 @@ index 458f3a9..13a5240 100644
 Change `crates/app/src/views/query_tab/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/query_tab/mod.rs b/crates/app/src/views/query_tab/mod.rs
-index 14c4cfa..caf73ce 100644
 --- a/crates/app/src/views/query_tab/mod.rs
 +++ b/crates/app/src/views/query_tab/mod.rs
 @@ -17,7 +17,10 @@ use gpui_kit::{
@@ -5931,7 +5890,6 @@ index 14c4cfa..caf73ce 100644
 Change `crates/app/src/views/query_tab/pump.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/query_tab/pump.rs b/crates/app/src/views/query_tab/pump.rs
-index 5d4d375..2133fc1 100644
 --- a/crates/app/src/views/query_tab/pump.rs
 +++ b/crates/app/src/views/query_tab/pump.rs
 @@ -10,9 +10,12 @@ use async_channel::Receiver;
@@ -5986,7 +5944,6 @@ diff --git a/crates/app/src/views/results.rs b/crates/app/src/views/results/grid
 similarity index 86%
 rename from crates/app/src/views/results.rs
 rename to crates/app/src/views/results/grid.rs
-index 7c6af57..4f16ebd 100644
 --- a/crates/app/src/views/results.rs
 +++ b/crates/app/src/views/results/grid.rs
 @@ -1,4 +1,4 @@
@@ -6245,7 +6202,6 @@ fn statement_strip(tab: &QueryTab, cx: &mut Context<QueryTab>) -> Option<AnyElem
 Change `crates/app/src/views/workspace/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/layout.rs b/crates/app/src/views/workspace/layout.rs
-index a1f7db8..f71c912 100644
 --- a/crates/app/src/views/workspace/layout.rs
 +++ b/crates/app/src/views/workspace/layout.rs
 @@ -33,6 +33,7 @@ impl Render for Workspace {
@@ -6261,7 +6217,6 @@ index a1f7db8..f71c912 100644
 Change `crates/app/src/views/workspace/runs.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/runs.rs b/crates/app/src/views/workspace/runs.rs
-index 9949c90..9edb3ac 100644
 --- a/crates/app/src/views/workspace/runs.rs
 +++ b/crates/app/src/views/workspace/runs.rs
 @@ -4,12 +4,13 @@
@@ -6352,7 +6307,6 @@ git commit -m "feat(app): run whole scripts with a result tab per statement and 
 Change `crates/app/tests/app/runs.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/app/runs.rs b/crates/app/tests/app/runs.rs
-index 162698b..6f1f88c 100644
 --- a/crates/app/tests/app/runs.rs
 +++ b/crates/app/tests/app/runs.rs
 @@ -1,8 +1,12 @@
@@ -6426,7 +6380,6 @@ index 162698b..6f1f88c 100644
 Change `crates/app/tests/shell.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/shell.rs b/crates/app/tests/shell.rs
-index 82536ee..f575a36 100644
 --- a/crates/app/tests/shell.rs
 +++ b/crates/app/tests/shell.rs
 @@ -49,7 +49,7 @@ fn every_menu_command_has_a_key_binding() {
@@ -6451,7 +6404,6 @@ Expected: `no method named plan` / `unresolved import quarry::model::plan_tree::
 Change `crates/app/src/model/drain.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/drain.rs b/crates/app/src/model/drain.rs
-index 659d9e0..db0c549 100644
 --- a/crates/app/src/model/drain.rs
 +++ b/crates/app/src/model/drain.rs
 @@ -6,6 +6,7 @@
@@ -6513,7 +6465,6 @@ index 659d9e0..db0c549 100644
 Change `crates/app/src/model/plan_tree.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/model/plan_tree.rs b/crates/app/src/model/plan_tree.rs
-index 821bf45..d03750c 100644
 --- a/crates/app/src/model/plan_tree.rs
 +++ b/crates/app/src/model/plan_tree.rs
 @@ -1,6 +1,9 @@
@@ -6599,7 +6550,6 @@ index 821bf45..d03750c 100644
 Change `crates/app/src/shell/actions.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/actions.rs b/crates/app/src/shell/actions.rs
-index 576e5b9..2c2f08a 100644
 --- a/crates/app/src/shell/actions.rs
 +++ b/crates/app/src/shell/actions.rs
 @@ -12,6 +12,8 @@ actions!(
@@ -6676,7 +6626,6 @@ impl QueryTab {
 Change `crates/app/src/views/query_tab/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/query_tab/mod.rs b/crates/app/src/views/query_tab/mod.rs
-index caf73ce..f9c8a3d 100644
 --- a/crates/app/src/views/query_tab/mod.rs
 +++ b/crates/app/src/views/query_tab/mod.rs
 @@ -4,6 +4,7 @@
@@ -6719,7 +6668,6 @@ index caf73ce..f9c8a3d 100644
 Change `crates/app/src/views/results/mod.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/results/mod.rs b/crates/app/src/views/results/mod.rs
-index b80be95..77b4129 100644
 --- a/crates/app/src/views/results/mod.rs
 +++ b/crates/app/src/views/results/mod.rs
 @@ -5,6 +5,7 @@
@@ -6829,7 +6777,6 @@ fn step(row: &PlanRow) -> AnyElement {
 Change `crates/app/src/views/workspace/layout.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/layout.rs b/crates/app/src/views/workspace/layout.rs
-index f71c912..2ffc7e8 100644
 --- a/crates/app/src/views/workspace/layout.rs
 +++ b/crates/app/src/views/workspace/layout.rs
 @@ -34,6 +34,7 @@ impl Render for Workspace {
@@ -6845,7 +6792,6 @@ index f71c912..2ffc7e8 100644
 Change `crates/app/src/views/workspace/runs.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/views/workspace/runs.rs b/crates/app/src/views/workspace/runs.rs
-index 9edb3ac..b0fb8d3 100644
 --- a/crates/app/src/views/workspace/runs.rs
 +++ b/crates/app/src/views/workspace/runs.rs
 @@ -1,15 +1,16 @@
@@ -6956,7 +6902,6 @@ Closing the only window quits Quarry instead of leaving it running with no windo
 Change `crates/app/tests/shell.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/tests/shell.rs b/crates/app/tests/shell.rs
-index f575a36..91ea323 100644
 --- a/crates/app/tests/shell.rs
 +++ b/crates/app/tests/shell.rs
 @@ -1,7 +1,7 @@
@@ -7005,7 +6950,6 @@ Expected: `cannot find function on_last_window_closed`.
 Change `README.md` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/README.md b/README.md
-index 15a6ad2..7a60a69 100644
 --- a/README.md
 +++ b/README.md
 @@ -2,7 +2,7 @@
@@ -7022,7 +6966,6 @@ index 15a6ad2..7a60a69 100644
 Change `crates/app/src/main.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/main.rs b/crates/app/src/main.rs
-index 93570ed..8fc03eb 100644
 --- a/crates/app/src/main.rs
 +++ b/crates/app/src/main.rs
 @@ -10,6 +10,7 @@ fn main() {
@@ -7038,7 +6981,6 @@ index 93570ed..8fc03eb 100644
 Change `crates/app/src/shell/window.rs` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/crates/app/src/shell/window.rs b/crates/app/src/shell/window.rs
-index 8648585..2b90559 100644
 --- a/crates/app/src/shell/window.rs
 +++ b/crates/app/src/shell/window.rs
 @@ -58,3 +58,14 @@ pub fn open_main(saved: SavedTabs, cx: &mut App) -> Result<(), EngineError> {
@@ -7061,7 +7003,6 @@ index 8648585..2b90559 100644
 Change `docs/adr/0009-app-shell.md` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/docs/adr/0009-app-shell.md b/docs/adr/0009-app-shell.md
-index b63f725..e91590a 100644
 --- a/docs/adr/0009-app-shell.md
 +++ b/docs/adr/0009-app-shell.md
 @@ -1,6 +1,6 @@
@@ -7104,7 +7045,6 @@ Phase 1D turns the single editor of Phase 1C (ADR 0009) into query tabs whose dr
 Change `docs/superpowers/specs/2026-11-04-quarry-design.md` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/docs/superpowers/specs/2026-11-04-quarry-design.md b/docs/superpowers/specs/2026-11-04-quarry-design.md
-index 731730b..1b42c73 100644
 --- a/docs/superpowers/specs/2026-11-04-quarry-design.md
 +++ b/docs/superpowers/specs/2026-11-04-quarry-design.md
 @@ -151,10 +151,10 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
@@ -7125,7 +7065,6 @@ index 731730b..1b42c73 100644
 Change `docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md` (apply with `git apply`, or edit by hand):
 ```diff
 diff --git a/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md b/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md
-index e7f4e23..898defe 100644
 --- a/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md
 +++ b/docs/superpowers/specs/2026-11-09-phase-1d-tabs-runs-design.md
 @@ -63,7 +63,7 @@ impl SqliteStore {
