@@ -8,4 +8,5 @@ pub mod format;
 pub mod run;
 pub mod schema_tree;
 pub mod status;
+pub mod tabs;
 pub mod target;
