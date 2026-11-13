@@ -280,10 +280,21 @@ fn work(mut driver: Box<dyn Driver>, inbox: &mpsc::Receiver<Job>, shared: &Share
             }
             Job::Plan { sql, reply } => {
                 shared.begin_read();
-                let _ = reply.send_blocking(driver.plan(&sql));
+                let _ = reply.send_blocking(driver.plan(first_statement(&sql)));
             }
         }
     }
+}
+
+/// The text to plan for `sql`: its first statement, or `sql` as given when the
+/// splitter finds none. This is the one place that rule lives, so every driver
+/// plans a multi-statement selection the same way.
+fn first_statement(sql: &str) -> &str {
+    splitter::split(sql)
+        .into_iter()
+        .next()
+        .and_then(|range| sql.get(range))
+        .unwrap_or(sql)
 }
 
 /// One run being executed on the session thread.

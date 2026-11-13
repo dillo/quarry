@@ -83,6 +83,24 @@ fn a_session_plans_after_queued_runs() -> TestResult {
     Ok(())
 }
 
+#[test]
+fn a_session_plans_only_the_first_statement() -> TestResult {
+    let session = Session::start(Box::new(driver()?));
+    let plan = session
+        .plan("SELECT id FROM ships; SELECT * FROM nowhere")
+        .recv_blocking()??;
+    assert_eq!(labels(&plan.nodes), ["SCAN ships"]);
+    Ok(())
+}
+
+#[test]
+fn a_session_plans_text_without_statements_as_given() -> TestResult {
+    let session = Session::start(Box::new(driver()?));
+    let error = session.plan("-- nothing").recv_blocking()?.err();
+    assert!(matches!(error, Some(EngineError::Sql(_))));
+    Ok(())
+}
+
 /// A driver that keeps the default `plan`.
 struct Plain;
 

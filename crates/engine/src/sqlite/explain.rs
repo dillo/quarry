@@ -8,7 +8,7 @@ use crate::{
     plan::{Plan, PlanStep},
 };
 
-/// Plans the first statement in `sql`.
+/// Plans `sql`, which the session has already cut down to one statement.
 pub(super) fn plan(connection: &Connection, sql: &str) -> Result<Plan, EngineError> {
     let mut statement = connection
         .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
