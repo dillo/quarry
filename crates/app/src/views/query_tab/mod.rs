@@ -4,6 +4,7 @@
 //! runs; a tab follows its run's events (see [`pump`]) and tells the
 //! workspace when the run ends.
 
+mod explain;
 mod layout;
 mod pump;
 
@@ -21,7 +22,7 @@ use super::{
     editor,
     results::{ResultViewRegistry, ResultsDelegate},
 };
-use crate::model::{statements::RunOutput, target};
+use crate::model::{plan_tree::PlanState, statements::RunOutput, target};
 
 /// What a tab tells the workspace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,8 @@ pub struct QueryTab {
     scope: RunScope,
     run: Option<RunHandle>,
     pump: Option<Task<()>>,
+    plan: PlanState,
+    planning: Option<Task<()>>,
     _edits: Subscription,
 }
 
@@ -76,6 +79,8 @@ impl QueryTab {
             scope: RunScope::Statement,
             run: None,
             pump: None,
+            plan: PlanState::Idle,
+            planning: None,
             _edits: edits,
         }
     }

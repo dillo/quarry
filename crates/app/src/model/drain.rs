@@ -6,6 +6,7 @@
 //! redraw.
 
 use async_channel::{Receiver, TryRecvError};
+use quarry_engine::error::EngineError;
 
 /// What one poll found.
 #[derive(Debug, PartialEq)]
@@ -38,9 +39,20 @@ pub fn drain<T>(receiver: &Receiver<T>) -> Drained<T> {
     }
 }
 
+/// A one-off reply (a schema or a plan), once it has come: the reply
+/// itself, or `WorkerGone` when the channel closed without one.
+pub fn reply<T>(drained: Drained<Result<T, EngineError>>) -> Option<Result<T, EngineError>> {
+    let Drained { mut items, closed } = drained;
+    items
+        .pop()
+        .or_else(|| closed.then_some(Err(EngineError::WorkerGone)))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Drained, drain};
+    use quarry_engine::error::EngineError;
+
+    use super::{Drained, drain, reply};
 
     #[test]
     fn takes_everything_waiting_and_stays_open() {
@@ -75,5 +87,24 @@ mod tests {
                 closed: true
             }
         );
+    }
+
+    #[test]
+    fn a_reply_is_its_last_item_or_a_lost_worker() {
+        let waiting: Drained<Result<u8, EngineError>> = Drained {
+            items: vec![],
+            closed: false,
+        };
+        assert_eq!(reply(waiting), None);
+        let came = Drained {
+            items: vec![Ok(1), Ok(2)],
+            closed: true,
+        };
+        assert_eq!(reply(came), Some(Ok(2)));
+        let gone: Drained<Result<u8, EngineError>> = Drained {
+            items: vec![],
+            closed: true,
+        };
+        assert_eq!(reply(gone), Some(Err(EngineError::WorkerGone)));
     }
 }

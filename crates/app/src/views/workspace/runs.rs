@@ -1,15 +1,16 @@
-//! Submits the active tab's runs to the session, and reads the schema.
+//! Submits the active tab's runs and plans to the session, and reads the
+//! schema.
 //!
 //! The schema reply is polled once per [`POLL`] rather than awaited (see
 //! [`crate::model::drain`]).
 
 use gpui_kit::{Context, Window};
-use quarry_engine::{error::EngineError, schema::Schema, splitter};
+use quarry_engine::splitter;
 
 use super::{POLL, Workspace};
 use crate::{
-    model::drain::{Drained, drain},
-    shell::actions::{CancelRun, RunAll, RunStatement},
+    model::drain,
+    shell::actions::{CancelRun, Explain, RunAll, RunStatement},
     views::query_tab::RunScope,
 };
 
@@ -45,6 +46,16 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Shows the plan of the active tab's selection or current statement.
+    pub(super) fn explain(&mut self, _: &Explain, _: &mut Window, cx: &mut Context<Self>) {
+        let tab = self.active_tab().clone();
+        let Some(sql) = tab.read(cx).target_sql(cx) else {
+            return;
+        };
+        let reply = self.session.plan(sql);
+        tab.update(cx, |tab, cx| tab.explain(reply, cx));
+    }
+
     pub(super) fn cancel(&mut self, _: &CancelRun, _: &mut Window, cx: &mut Context<Self>) {
         self.active_tab().read(cx).cancel();
     }
@@ -57,22 +68,11 @@ impl Workspace {
             let mut answer = None;
             while answer.is_none() {
                 cx.background_executor().timer(POLL).await;
-                answer = schema_answer(drain(&reply));
+                answer = drain::reply(drain::drain(&reply));
             }
             if let Some(schema) = answer {
                 tree.update(cx, |tree, cx| tree.set(schema, cx));
             }
         }));
     }
-}
-
-/// The schema reply, once it has come: the reply itself, or `WorkerGone`
-/// when the channel closed without one.
-fn schema_answer(
-    drained: Drained<Result<Schema, EngineError>>,
-) -> Option<Result<Schema, EngineError>> {
-    let Drained { mut items, closed } = drained;
-    items
-        .pop()
-        .or_else(|| closed.then_some(Err(EngineError::WorkerGone)))
 }

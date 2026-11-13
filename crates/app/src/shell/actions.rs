@@ -12,6 +12,8 @@ actions!(
         RunStatement,
         /// Runs the whole script, statement by statement.
         RunAll,
+        /// Shows how the database would run the current statement.
+        Explain,
         /// Cancels the running query.
         CancelRun,
         /// Opens a new query tab.
@@ -48,6 +50,7 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE)),
         KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE_EDITOR)),
         KeyBinding::new("cmd-shift-r", RunAll, Some(WORKSPACE)),
+        KeyBinding::new("cmd-e", Explain, Some(WORKSPACE)),
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE)),
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE_EDITOR)),
         KeyBinding::new("cmd-t", NewTab, None),
@@ -73,6 +76,7 @@ pub fn menus() -> Vec<Menu> {
         Menu::new("Query").items([
             MenuItem::action("Run Statement", RunStatement),
             MenuItem::action("Run All", RunAll),
+            MenuItem::action("Explain", Explain),
             MenuItem::action("Cancel", CancelRun),
         ]),
         Menu::new("View").items([

@@ -1,6 +1,9 @@
 //! The Plan view's rows: a query plan flattened with each step's depth.
 
-use quarry_engine::plan::{Plan, PlanNode};
+use quarry_engine::{
+    error::EngineError,
+    plan::{Plan, PlanNode},
+};
 
 /// One step of a plan, indented by `depth`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,6 +12,30 @@ pub struct PlanRow {
     pub depth: usize,
     /// The database's description of the step.
     pub label: String,
+}
+
+/// What the Plan view shows.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum PlanState {
+    /// Nothing has been explained yet.
+    #[default]
+    Idle,
+    /// The plan has been asked for.
+    Planning,
+    /// The plan's steps.
+    Ready(Vec<PlanRow>),
+    /// Why there is no plan.
+    Failed(String),
+}
+
+impl PlanState {
+    /// The state for the session's answer.
+    pub fn answered(answer: Result<Plan, EngineError>) -> Self {
+        match answer {
+            Ok(plan) => Self::Ready(rows(&plan)),
+            Err(error) => Self::Failed(error.to_string()),
+        }
+    }
 }
 
 /// Every step, depth first, in the database's order.
@@ -30,9 +57,12 @@ fn push(nodes: &[PlanNode], depth: usize, rows: &mut Vec<PlanRow>) {
 
 #[cfg(test)]
 mod tests {
-    use quarry_engine::plan::{Plan, PlanNode};
+    use quarry_engine::{
+        error::EngineError,
+        plan::{Plan, PlanNode},
+    };
 
-    use super::{PlanRow, rows};
+    use super::{PlanRow, PlanState, rows};
 
     fn node(label: &str, children: Vec<PlanNode>) -> PlanNode {
         PlanNode {
@@ -73,5 +103,21 @@ mod tests {
     #[test]
     fn an_empty_plan_has_no_rows() {
         assert!(rows(&Plan::default()).is_empty());
+    }
+
+    #[test]
+    fn an_answer_becomes_rows_or_a_reason() {
+        let plan = Plan {
+            nodes: vec![node("SCAN t", vec![])],
+        };
+        assert_eq!(
+            PlanState::answered(Ok(plan)),
+            PlanState::Ready(vec![row(0, "SCAN t")])
+        );
+        assert_eq!(
+            PlanState::answered(Err(EngineError::PlanUnsupported)),
+            PlanState::Failed("This database can't show query plans.".to_owned())
+        );
+        assert_eq!(PlanState::default(), PlanState::Idle);
     }
 }

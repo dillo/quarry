@@ -5,6 +5,7 @@
 
 mod grid;
 mod messages;
+mod plan;
 mod table;
 
 use gpui_kit::{AnyElement, Context, Window};
@@ -34,12 +35,13 @@ pub struct ResultViewRegistry {
 }
 
 impl ResultViewRegistry {
-    /// Results, then Messages.
+    /// Results, Messages, Plan.
     pub fn standard() -> Self {
         Self {
             views: vec![
                 Box::new(table::ResultsView),
                 Box::new(messages::MessagesView),
+                Box::new(plan::PlanView),
             ],
         }
     }

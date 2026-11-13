@@ -1,8 +1,12 @@
-//! Run all, the Results and Messages views, and runs queued across tabs.
+//! Run all, Explain, the result views, and runs queued across tabs.
 
 use gpui_kit::{TestAppContext, test::TestWindowExt};
 use quarry::{
-    model::{messages, statements::Phase},
+    model::{
+        messages,
+        plan_tree::{PlanRow, PlanState},
+        statements::Phase,
+    },
     views::results::statement_tab_id,
 };
 use quarry_engine::error::EngineError;
@@ -125,4 +129,51 @@ fn a_run_in_another_tab_waits_for_the_running_one(cx: &mut TestAppContext) {
         workspace.read(cx).run_output(cx).phase() == &Phase::Finished
     });
     assert_eq!(phase(&workspace, cx), Phase::Finished);
+}
+
+#[gpui_kit::test]
+fn command_e_shows_the_statement_plan(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(&workspace, cx, "SELECT name FROM astronauts WHERE id = 3");
+    cx.simulate_keystrokes("cmd-e");
+    let plan = |cx: &mut gpui_kit::VisualTestContext| {
+        cx.update(|_, cx| workspace.read(cx).active_tab().read(cx).plan().clone())
+    };
+    assert_eq!(plan(cx), PlanState::Planning);
+    settle(cx, |_, cx| {
+        matches!(
+            workspace.read(cx).active_tab().read(cx).plan(),
+            PlanState::Ready(_)
+        )
+    });
+    let rows = vec![PlanRow {
+        depth: 0,
+        label: "SEARCH astronauts USING INTEGER PRIMARY KEY (rowid=?)".to_owned(),
+    }];
+    assert_eq!(plan(cx), PlanState::Ready(rows));
+    cx.update(|_, cx| {
+        assert_eq!(workspace.read(cx).active_tab().read(cx).view_id(), "plan");
+    });
+    assert!(drawn(cx, "plan"));
+}
+
+#[gpui_kit::test]
+fn a_statement_that_cannot_be_planned_says_why(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(&workspace, cx, "SELECT * FROM nowhere");
+    cx.simulate_keystrokes("cmd-e");
+    settle(cx, |_, cx| {
+        matches!(
+            workspace.read(cx).active_tab().read(cx).plan(),
+            PlanState::Failed(_)
+        )
+    });
+    cx.update(|_, cx| {
+        let tab = workspace.read(cx).active_tab().read(cx);
+        assert_eq!(
+            tab.plan(),
+            &PlanState::Failed("no such table: nowhere".to_owned())
+        );
+        assert_eq!(tab.output(cx).phase(), &Phase::Idle, "explain runs nothing");
+    });
 }
