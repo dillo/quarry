@@ -7,6 +7,7 @@ use std::sync::{
 
 use crate::{
     error::EngineError,
+    plan::Plan,
     result::{RowSink, Summary},
     schema::Schema,
 };
@@ -28,6 +29,17 @@ pub trait Driver: Send {
     /// # Errors
     /// Returns an error when the catalog cannot be read.
     fn schema(&mut self) -> Result<Schema, EngineError>;
+
+    /// Describes how the database would run `sql`, without running it. The
+    /// session passes a single statement, the first one in the selection.
+    ///
+    /// # Errors
+    /// Returns [`EngineError::PlanUnsupported`] unless the driver overrides
+    /// it, or the database's error for SQL it cannot plan.
+    fn plan(&mut self, sql: &str) -> Result<Plan, EngineError> {
+        let _ = sql;
+        Err(EngineError::PlanUnsupported)
+    }
 
     /// The flag that interrupts whatever this driver is running.
     fn canceller(&self) -> Canceller;

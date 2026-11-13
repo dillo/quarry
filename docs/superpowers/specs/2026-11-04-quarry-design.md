@@ -151,10 +151,10 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
    - The schema tree: tables with row counts, and columns with their types. Clicking a table opens it in a browse tab. Dragging a name into the editor inserts it as text, which is a manual action and not autocomplete.
    - Query history.
 2. **Center**
-   - **Tabs** (⌘T opens one, ⌘W closes one). Each challenge tab keeps its own draft, and drafts survive restarts. Scratch tabs are freeform.
+   - **Tabs** (⌘T opens one, ⌘W closes one, ⌘⇧] and ⌘⇧[ switch). Each challenge tab keeps its own draft, and drafts survive restarts. Scratch tabs are freeform.
    - **Editor:** syntax highlighting, line numbers, bracket matching and multiple cursors. **Every completion and suggestion feature is disabled.**
    - A draggable divider.
-   - **Results views:** Results, Messages and Plan (`EXPLAIN` / `EXPLAIN QUERY PLAN`).
+   - **Results views:** Results, Messages and Plan. Explain (⌘E) fills the Plan view from the driver (`EXPLAIN QUERY PLAN` on SQLite).
    - **Actions:** Run (⌘↵) runs the statement under the cursor or the selection. Run all (⌘⇧R) runs the whole script, with one results tab per statement. Check answer (⌘⇧↵). Cancel (⌘.).
    - **Results grid:** virtualized and streaming ("1,000 of ~2.3M rows · fetching…"), resizable columns, NULLs shown in dim italic, and copy as TSV, CSV or JSON.
    - **Status bar:** which database you're connected to, row count, how long the query took, cursor position, a live timer while running, and a transaction indicator.

@@ -7,13 +7,26 @@ use quarry_engine::value::Value;
 /// The longest text a grid cell shows before it is cut with `…`.
 pub const CELL_LIMIT: usize = 200;
 
-/// A cell's text: one line, at most [`CELL_LIMIT`] characters.
+/// A cell's text: one line, at most [`CELL_LIMIT`] characters. Long text
+/// is cut before anything is copied, and control characters such as line
+/// breaks and tabs read as spaces.
 pub fn cell_text(value: &Value) -> String {
-    let text = value.to_string().replace(['\n', '\r'], " ");
-    match text.char_indices().nth(CELL_LIMIT) {
-        Some((cut, _)) => format!("{}…", &text[..cut]),
-        None => text,
+    match value {
+        Value::Text(text) => one_line(text),
+        other => one_line(&other.to_string()),
     }
+}
+
+fn one_line(text: &str) -> String {
+    let mut line: String = text
+        .chars()
+        .take(CELL_LIMIT)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    if text.chars().nth(CELL_LIMIT).is_some() {
+        line.push('…');
+    }
+    line
 }
 
 /// Numbers line up on the right, by digit; everything else on the left.
@@ -81,6 +94,8 @@ mod tests {
     fn cells_are_one_line() {
         let value = Value::Text("two\nlines\r\n".to_owned());
         assert_eq!(cell_text(&value), "two lines  ");
+        let tabs = Value::Text("a\tb\u{7}c".to_owned());
+        assert_eq!(cell_text(&tabs), "a b c");
     }
 
     #[test]

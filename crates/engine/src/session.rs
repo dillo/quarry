@@ -5,7 +5,7 @@
 //! time, in submission order. Dropping a handle stops its run. Dropping the
 //! session stops runs: the current statement is interrupted, later statements
 //! do not start, and queued runs fail with [`EngineError::Cancelled`]. A
-//! schema read queued before the drop still completes.
+//! schema read or plan queued before the drop still completes.
 //!
 //! # Using a session from the UI
 //!
@@ -37,13 +37,16 @@ use async_channel::{Receiver, Sender};
 use crate::{
     driver::{Canceller, Driver},
     error::EngineError,
+    plan::Plan,
     result::{Column, Row, RowSink, Summary},
     schema::Schema,
     splitter,
 };
 
 /// Batches buffered per run before the session thread waits for the reader.
-const EVENT_BUFFER: usize = 16;
+/// A reader polling every 33 ms streams 200,000 rows in about 0.16 s with
+/// 128 batches, against about 1 s with 16 (ADR 0010).
+pub const EVENT_BUFFER: usize = 128;
 
 /// Something that happened while running a script.
 #[derive(Debug, Clone, PartialEq)]
@@ -108,6 +111,10 @@ enum Job {
         events: Sender<RunEvent>,
     },
     Schema(Sender<Result<Schema, EngineError>>),
+    Plan {
+        sql: String,
+        reply: Sender<Result<Plan, EngineError>>,
+    },
 }
 
 impl Session {
@@ -156,6 +163,20 @@ impl Session {
     pub fn schema(&self) -> Receiver<Result<Schema, EngineError>> {
         let (reply, receiver) = async_channel::bounded(1);
         if let Err(mpsc::SendError(Job::Schema(reply))) = self.jobs.send(Job::Schema(reply)) {
+            let _ = reply.try_send(Err(EngineError::WorkerGone));
+        }
+        receiver
+    }
+
+    /// Plans the first statement in `sql` on the session thread, after any
+    /// queued runs.
+    pub fn plan(&self, sql: impl Into<String>) -> Receiver<Result<Plan, EngineError>> {
+        let (reply, receiver) = async_channel::bounded(1);
+        let job = Job::Plan {
+            sql: sql.into(),
+            reply,
+        };
+        if let Err(mpsc::SendError(Job::Plan { reply, .. })) = self.jobs.send(job) {
             let _ = reply.try_send(Err(EngineError::WorkerGone));
         }
         receiver
@@ -224,8 +245,8 @@ impl Shared {
         self.driver_canceller.reset();
     }
 
-    /// Clears the driver flag before a schema read, outside of any run.
-    fn begin_schema(&self) {
+    /// Clears the driver flag before a schema read or a plan, outside of any run.
+    fn begin_read(&self) {
         let _current = self.current();
         self.driver_canceller.reset();
     }
@@ -254,11 +275,26 @@ fn work(mut driver: Box<dyn Driver>, inbox: &mpsc::Receiver<Job>, shared: &Share
                 active.execute(driver.as_mut());
             }
             Job::Schema(reply) => {
-                shared.begin_schema();
+                shared.begin_read();
                 let _ = reply.send_blocking(driver.schema());
+            }
+            Job::Plan { sql, reply } => {
+                shared.begin_read();
+                let _ = reply.send_blocking(driver.plan(first_statement(&sql)));
             }
         }
     }
+}
+
+/// The text to plan for `sql`: its first statement, or `sql` as given when the
+/// splitter finds none. This is the one place that rule lives, so every driver
+/// plans a multi-statement selection the same way.
+fn first_statement(sql: &str) -> &str {
+    splitter::split(sql)
+        .into_iter()
+        .next()
+        .and_then(|range| sql.get(range))
+        .unwrap_or(sql)
 }
 
 /// One run being executed on the session thread.

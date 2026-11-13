@@ -1,23 +1,35 @@
-//! The workspace: schema sidebar, editor over results, and the status bar.
+//! The workspace: schema sidebar, query tabs, and the status bar.
 //!
 //! This module owns the workspace's state and its window commands;
-//! [`runner`] drives runs against the [`Session`] and [`layout`] draws it.
+//! [`tabs`] opens, closes and switches tabs, [`drafts`] saves them,
+//! [`runs`] submits runs and reads the schema, and [`layout`] draws it.
 
+mod drafts;
 mod layout;
-mod runner;
+mod runs;
+mod tab_strip;
+mod tabs;
 
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use gpui_kit::{
-    App, AppContext, Context, Entity, FocusHandle, Focusable, Task, Window,
-    component::{input::EditorState, table::TableState},
+    App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, Window,
+    component::input::EditorState,
 };
-use quarry_engine::session::{RunHandle, Session};
+use quarry_engine::session::Session;
+use quarry_store::drafts::{DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
-use super::{editor, results::ResultsDelegate, schema::SchemaTree};
+pub use self::{
+    drafts::{AUTOSAVE, SavedTabs},
+    tab_strip::tab_element_id,
+};
+use super::{editor, query_tab::QueryTab, schema::SchemaTree};
 use crate::{
-    model::run::RunModel,
+    model::{
+        statements::RunOutput,
+        tabs::{Tab, TabId, TabList},
+    },
     shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
 };
 
@@ -28,70 +40,92 @@ pub const POLL: Duration = Duration::from_millis(33);
 pub const SIDEBAR_WIDTH: f32 = 240.0;
 
 /// The main window's content.
+///
+/// Every tab in `tabs` has a view in `views`.
 pub struct Workspace {
     session: Session,
     database: String,
-    editor: Entity<EditorState>,
-    results: Entity<TableState<ResultsDelegate>>,
+    tabs: TabList,
+    views: BTreeMap<TabId, Entity<QueryTab>>,
+    store: Arc<dyn DraftStore>,
+    open_problem: Option<String>,
+    save_problem: Option<String>,
+    autosave: Option<Task<()>>,
+    saving: Option<Task<()>>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
-    current: Option<RunHandle>,
-    run: Option<Task<()>>,
     schema_read: Option<Task<()>>,
+    _quit: Subscription,
 }
 
 impl Workspace {
-    /// A workspace on `session`, labelled `database` in the status bar.
+    /// A workspace on `session`, labelled `database` in the status bar,
+    /// with the tabs saved in `saved`.
     pub fn new(
         session: Session,
         database: &str,
+        saved: SavedTabs,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let editor = editor::new_editor(editor::WELCOME, window, cx);
-        // The delegate indexes rows by model column, so a dragged header
-        // would end up over the wrong data.
-        let results =
-            cx.new(|cx| TableState::new(ResultsDelegate::default(), window, cx).col_movable(false));
-        cx.observe_window_appearance(window, |_, _, cx| Aurora::system_appearance_changed(cx))
-            .detach();
+        let (store, drafts, problem) = saved.open();
         let mut workspace = Self {
             session,
             database: database.to_owned(),
-            editor,
-            results,
+            tabs: restored_tabs(&drafts),
+            views: BTreeMap::new(),
+            store,
+            open_problem: problem,
+            save_problem: None,
+            autosave: None,
+            saving: None,
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
-            current: None,
-            run: None,
             schema_read: None,
+            _quit: cx.on_app_quit(|workspace, cx| {
+                workspace.save_before_quit(cx);
+                async {}
+            }),
         };
+        workspace.add_views(&drafts, window, cx);
         workspace.read_schema(cx);
+        Self::save_on_close(window.window_handle().window_id(), cx);
         workspace
     }
 
-    /// The editor, so callers can focus it or set its text.
-    pub fn editor(&self) -> &Entity<EditorState> {
-        &self.editor
+    /// Creates a view per tab, with its saved text; a fresh start shows the
+    /// welcome query.
+    fn add_views(&mut self, drafts: &Drafts, window: &mut Window, cx: &mut Context<Self>) {
+        let ids: Vec<TabId> = self.tabs.tabs().iter().map(|tab| tab.id).collect();
+        for id in ids {
+            let saved = drafts.tabs.iter().find(|draft| draft.id == id);
+            let text = saved.map_or(editor::WELCOME, |draft| draft.text.as_str());
+            self.add_view(id, text, window, cx);
+        }
+    }
+
+    /// The open tabs and which is active.
+    pub fn tabs(&self) -> &TabList {
+        &self.tabs
+    }
+
+    /// The active tab's editor.
+    pub fn editor(&self, cx: &App) -> Entity<EditorState> {
+        self.active_tab().read(cx).editor().clone()
+    }
+
+    /// The active tab's latest run.
+    pub fn run_output<'a>(&self, cx: &'a App) -> &'a RunOutput {
+        self.active_tab().read(cx).output(cx)
     }
 
     /// The sidebar's schema tree.
     pub fn schema(&self) -> &Entity<SchemaTree> {
         &self.schema
-    }
-
-    /// The run the grid shows.
-    pub fn run_model<'a>(&self, cx: &'a App) -> &'a RunModel {
-        self.results.read(cx).delegate().model()
-    }
-
-    /// Whether the user can drag result columns into a new order.
-    pub fn columns_movable(&self, cx: &App) -> bool {
-        self.results.read(cx).col_movable
     }
 
     /// Whether the sidebar is shown.
@@ -118,7 +152,8 @@ impl Workspace {
     }
 
     fn focus_editor(&mut self, _: &FocusEditor, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor.update(cx, |state, cx| state.focus(window, cx));
+        self.editor(cx)
+            .update(cx, |state, cx| state.focus(window, cx));
     }
 
     fn cycle_theme(_: &mut Self, _: &CycleTheme, _: &mut Window, cx: &mut Context<Self>) {
@@ -131,6 +166,19 @@ impl Workspace {
 fn focus_first_stop(container: &FocusHandle, window: &mut Window, cx: &mut App) {
     window.focus(container, cx);
     window.focus_next(cx);
+}
+
+/// The saved tabs as a [`TabList`]; none saved opens "Query 1".
+fn restored_tabs(drafts: &Drafts) -> TabList {
+    let tabs = drafts
+        .tabs
+        .iter()
+        .map(|draft| Tab {
+            id: draft.id,
+            title: draft.title.clone(),
+        })
+        .collect();
+    TabList::restore(tabs, drafts.active)
 }
 
 impl Focusable for Workspace {

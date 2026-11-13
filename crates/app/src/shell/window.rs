@@ -5,9 +5,12 @@ use gpui_kit::{
     WindowOptions, point, px, size,
 };
 use quarry_engine::error::EngineError;
-use quarry_ui_kit::tokens::chrome;
+use quarry_ui_kit::{Aurora, tokens::chrome};
 
-use crate::{sample, views::workspace::Workspace};
+use crate::{
+    sample,
+    views::workspace::{SavedTabs, Workspace},
+};
 
 /// The main window's initial size.
 pub const WINDOW_SIZE: (f32, f32) = (1200.0, 760.0);
@@ -33,15 +36,20 @@ pub fn options(cx: &App) -> WindowOptions {
     }
 }
 
-/// Opens a workspace on a fresh sample database and focuses its editor.
+/// Opens a workspace on a fresh sample database with the tabs in `saved`,
+/// and focuses its editor. The window follows the system's light and dark
+/// appearance.
 ///
 /// # Errors
 /// Returns the engine's error when the sample database cannot be opened.
-pub fn open_main(cx: &mut App) -> Result<(), EngineError> {
+pub fn open_main(saved: SavedTabs, cx: &mut App) -> Result<(), EngineError> {
     let session = sample::open()?;
     let opened = gpui_kit::open_window(options(cx), cx, |window, cx| {
-        let workspace = cx.new(|cx| Workspace::new(session, sample::NAME, window, cx));
-        let editor = workspace.read(cx).editor().clone();
+        window
+            .observe_window_appearance(|_, cx| Aurora::system_appearance_changed(cx))
+            .detach();
+        let workspace = cx.new(|cx| Workspace::new(session, sample::NAME, saved, window, cx));
+        let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));
         workspace
     });
@@ -49,4 +57,15 @@ pub fn open_main(cx: &mut App) -> Result<(), EngineError> {
         target: "the main window".to_owned(),
         message: error.to_string(),
     })
+}
+
+/// Runs `then` when the last window closes. Quarry quits then, so it never
+/// lingers with no window and no way to open one.
+pub fn on_last_window_closed(cx: &mut App, then: impl Fn(&mut App) + 'static) {
+    cx.on_window_closed(move |cx, _| {
+        if cx.windows().is_empty() {
+            then(cx);
+        }
+    })
+    .detach();
 }
