@@ -9,3 +9,7 @@ exclude_globs = [
     "crates/app/src/shell/**",
     "crates/app/src/main.rs",
 ]
+
+# `Forgetful::load` returns `Ok(Drafts::default())`, which is exactly what the
+# `Ok(Default::default())` mutant produces, so that mutant can never be caught.
+exclude_re = ["<impl DraftStore for Forgetful>::load"]
