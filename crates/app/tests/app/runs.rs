@@ -132,6 +132,29 @@ fn a_run_in_another_tab_waits_for_the_running_one(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn cancelling_a_queued_run_ends_it_while_the_other_tab_still_runs(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(
+        &workspace,
+        cx,
+        "SELECT count(*) FROM telemetry a, telemetry b",
+    );
+    cx.simulate_keystrokes("cmd-enter");
+    settle(cx, |_, cx| {
+        workspace.read(cx).run_output(cx).phase() == &Phase::Running
+    });
+    cx.simulate_keystrokes("cmd-t");
+    cx.simulate_input("SELECT 1");
+    cx.simulate_keystrokes("cmd-enter");
+    settle(cx, |_, _| true);
+    assert_eq!(phase(&workspace, cx), Phase::Waiting);
+    cx.simulate_keystrokes("cmd-.");
+    assert_eq!(phase(&workspace, cx), Phase::Failed(EngineError::Cancelled));
+    cx.simulate_keystrokes("cmd-{");
+    assert_eq!(phase(&workspace, cx), Phase::Running);
+}
+
+#[gpui_kit::test]
 fn command_e_shows_the_statement_plan(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     write(&workspace, cx, "SELECT name FROM astronauts WHERE id = 3");

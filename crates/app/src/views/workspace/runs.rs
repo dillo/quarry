@@ -11,7 +11,7 @@ use super::{POLL, Workspace};
 use crate::{
     model::drain,
     shell::actions::{CancelRun, Explain, RunAll, RunStatement},
-    views::query_tab::RunScope,
+    views::query_tab::{QueryTab, RunScope},
 };
 
 impl Workspace {
@@ -57,7 +57,7 @@ impl Workspace {
     }
 
     pub(super) fn cancel(&mut self, _: &CancelRun, _: &mut Window, cx: &mut Context<Self>) {
-        self.active_tab().read(cx).cancel();
+        self.active_tab().clone().update(cx, QueryTab::cancel);
     }
 
     /// Reads the schema after any queued runs and shows it in the sidebar.

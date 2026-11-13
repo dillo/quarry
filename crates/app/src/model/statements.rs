@@ -169,6 +169,15 @@ impl RunOutput {
         self.fail_unfinished();
     }
 
+    /// A queued run that is cancelled never starts: it fails as `Cancelled`.
+    /// In any other phase this does nothing, because the engine reports
+    /// those cancellations itself.
+    pub fn cancel_queued(&mut self) {
+        if self.phase == Phase::Waiting {
+            self.phase = Phase::Failed(EngineError::Cancelled);
+        }
+    }
+
     /// Where the run is.
     pub fn phase(&self) -> &Phase {
         &self.phase
@@ -324,6 +333,26 @@ mod tests {
         assert!(output.is_running());
         feed(&mut output, vec![started(0)]);
         assert_eq!(output.phase(), &Phase::Running);
+    }
+
+    #[test]
+    fn cancelling_a_queued_run_fails_it_without_starting_the_clock() {
+        let mut output = RunOutput::submitted(SCRIPT);
+        output.cancel_queued();
+        assert_eq!(output.phase(), &Phase::Failed(EngineError::Cancelled));
+        assert!(!output.is_running());
+        assert_eq!(output.elapsed(Instant::now()), Duration::ZERO);
+    }
+
+    #[test]
+    fn cancelling_a_run_that_is_not_queued_changes_nothing() {
+        let mut running = RunOutput::submitted(SCRIPT);
+        feed(&mut running, vec![started(0)]);
+        running.cancel_queued();
+        assert_eq!(running.phase(), &Phase::Running);
+        let mut idle = RunOutput::default();
+        idle.cancel_queued();
+        assert_eq!(idle.phase(), &Phase::Idle);
     }
 
     #[test]

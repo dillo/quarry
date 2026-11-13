@@ -22,7 +22,11 @@ use super::{
     editor,
     results::{ResultViewRegistry, ResultsDelegate},
 };
-use crate::model::{plan_tree::PlanState, statements::RunOutput, target};
+use crate::model::{
+    plan_tree::PlanState,
+    statements::{Phase, RunOutput},
+    target,
+};
 
 /// What a tab tells the workspace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,9 +187,24 @@ impl QueryTab {
     }
 
     /// Cancels the tab's run, if one is going.
-    pub fn cancel(&self) {
-        if let Some(handle) = &self.run {
-            handle.cancel();
+    ///
+    /// A run still queued behind another tab's would otherwise keep reading
+    /// "Waiting" until that run ended, so it is dropped on the spot: its
+    /// handle and pump go, and it shows as cancelled. It changed nothing, so
+    /// it emits no `RunEnded`.
+    pub fn cancel(&mut self, cx: &mut Context<Self>) {
+        let Some(handle) = &self.run else {
+            return;
+        };
+        handle.cancel();
+        if self.output(cx).phase() == &Phase::Waiting {
+            self.run = None;
+            self.pump = None;
+            self.results.update(cx, |table, cx| {
+                table.delegate_mut().cancel_queued();
+                cx.notify();
+            });
+            cx.notify();
         }
     }
 }

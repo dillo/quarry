@@ -49,6 +49,12 @@ impl ResultsDelegate {
         self.columns.clear();
     }
 
+    /// A queued run was cancelled before it started; see
+    /// [`RunOutput::cancel_queued`].
+    pub fn cancel_queued(&mut self) {
+        self.output.cancel_queued();
+    }
+
     /// The channel closed without `Done`; see [`RunOutput::end_closed`].
     pub fn end_closed(&mut self) {
         self.output.end_closed();
