@@ -1,7 +1,13 @@
 //! Query tabs: opening, closing and switching them, and keeping their
 //! drafts across restarts.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
 use quarry::{
@@ -244,4 +250,49 @@ fn a_failing_store_shows_a_warning(cx: &mut TestAppContext) {
         window.draw(cx).clear(cx);
         assert!(window.try_find("drafts-warning").is_some());
     });
+}
+
+/// A store whose load fails but whose save would succeed, noting any save.
+struct Unreadable {
+    saved: Arc<AtomicBool>,
+}
+
+impl DraftStore for Unreadable {
+    fn load(&self) -> Result<Drafts, StoreError> {
+        Err(StoreError::Sql("file is not a database".to_owned()))
+    }
+
+    fn save(&self, _: &Drafts) -> Result<(), StoreError> {
+        self.saved.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[gpui_kit::test]
+fn a_store_that_failed_to_load_is_never_saved_over(cx: &mut TestAppContext) {
+    install(cx);
+    let saved = Arc::new(AtomicBool::new(false));
+    let store = Arc::new(Unreadable {
+        saved: Arc::clone(&saved),
+    });
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_input("SELECT 1");
+    cx.executor().advance_clock(AUTOSAVE);
+    settle(cx, |_, _| true);
+    cx.simulate_keystrokes("cmd-t");
+    settle(cx, |_, _| true);
+    assert!(!saved.load(Ordering::SeqCst));
+    cx.update(|_, cx| assert!(workspace.read(cx).drafts_problem().is_some()));
+}
+
+#[gpui_kit::test]
+fn closing_the_window_saves_the_last_edits(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_input("SELECT 9");
+    cx.update(|window, _| window.remove_window());
+    cx.run_until_parked();
+    let loaded = store.load().expect("the drafts load");
+    assert!(loaded.tabs[0].text.starts_with("SELECT 9"));
 }

@@ -1,18 +1,19 @@
 //! Saving the tabs' drafts: a second after the last edit, at once when the
-//! tabs change, and when Quarry quits.
+//! tabs change, when the window closes and when Quarry quits.
 //!
 //! Writes run on the background executor, one after another, so a later
 //! snapshot never lands before an earlier one.
 
 use std::{sync::Arc, time::Duration};
 
-use gpui_kit::{App, AppContext, Context};
+use gpui_kit::{App, AppContext, Context, WindowId};
 use quarry_store::{
     drafts::{Draft, DraftStore, Drafts},
     error::StoreError,
 };
 
 use super::Workspace;
+use crate::shell::store::Forgetful;
 
 /// How long after the last edit the drafts are saved.
 pub const AUTOSAVE: Duration = Duration::from_secs(1);
@@ -25,7 +26,35 @@ pub struct SavedTabs {
     pub problem: Option<String>,
 }
 
+impl SavedTabs {
+    /// The store to use, the drafts it holds and the warning to show. A store
+    /// that cannot be read is replaced by one that keeps nothing, so a later
+    /// save never overwrites what it holds.
+    pub(super) fn open(self) -> (Arc<dyn DraftStore>, Drafts, Option<String>) {
+        match self.store.load() {
+            Ok(drafts) => (self.store, drafts, self.problem),
+            Err(error) => (
+                Arc::new(Forgetful),
+                Drafts::default(),
+                self.problem.or(Some(error.to_string())),
+            ),
+        }
+    }
+}
+
 impl Workspace {
+    /// Saves the drafts when the window `id` closes, so edits from the last
+    /// second are not lost with the pending autosave.
+    pub(super) fn save_on_close(id: WindowId, cx: &mut Context<Self>) {
+        let this = cx.weak_entity();
+        cx.on_window_closed(move |cx, closed| {
+            if closed == id {
+                let _ = this.read_with(cx, Workspace::save_before_quit);
+            }
+        })
+        .detach();
+    }
+
     /// Why drafts aren't being saved, if they aren't.
     pub fn drafts_problem(&self) -> Option<&str> {
         self.save_problem

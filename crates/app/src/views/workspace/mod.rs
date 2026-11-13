@@ -70,17 +70,14 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let (drafts, load_problem) = match saved.store.load() {
-            Ok(drafts) => (drafts, None),
-            Err(error) => (Drafts::default(), Some(error.to_string())),
-        };
+        let (store, drafts, problem) = saved.open();
         let mut workspace = Self {
             session,
             database: database.to_owned(),
             tabs: restored_tabs(&drafts),
             views: BTreeMap::new(),
-            store: saved.store,
-            open_problem: saved.problem.or(load_problem),
+            store,
+            open_problem: problem,
             save_problem: None,
             autosave: None,
             saving: None,
@@ -96,6 +93,7 @@ impl Workspace {
         };
         workspace.add_views(&drafts, window, cx);
         workspace.read_schema(cx);
+        Self::save_on_close(window.window_handle().window_id(), cx);
         workspace
     }
 
