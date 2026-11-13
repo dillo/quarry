@@ -8,7 +8,7 @@ use gpui_kit::{
     test::{TestEventExt, TestWindowExt},
 };
 use quarry::{
-    model::run::Phase,
+    model::statements::Phase,
     sample,
     shell::actions,
     views::{
@@ -71,13 +71,13 @@ fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut Window, &mut App) -> bo
 fn run(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) {
     cx.simulate_keystrokes("cmd-enter");
     settle(cx, |_, cx| {
-        let model = workspace.read(cx).run_model(cx);
-        !model.is_running() && model.phase() != &Phase::Idle
+        let output = workspace.read(cx).run_output(cx);
+        !output.is_running() && output.phase() != &Phase::Idle
     });
 }
 
 fn phase(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Phase {
-    cx.update(|_, cx| workspace.read(cx).run_model(cx).phase().clone())
+    cx.update(|_, cx| workspace.read(cx).run_output(cx).phase().clone())
 }
 
 #[gpui_kit::test]
@@ -106,11 +106,11 @@ fn command_return_in_the_editor_runs_the_statement(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx);
     write(&workspace, cx, "SELECT name FROM astronauts ORDER BY id");
     run(&workspace, cx);
-    assert!(matches!(phase(&workspace, cx), Phase::Finished(_)));
+    assert_eq!(phase(&workspace, cx), Phase::Finished);
     cx.update(|_, cx| {
-        let model = workspace.read(cx).run_model(cx);
-        assert_eq!(model.rows().len(), 12);
-        assert_eq!(model.columns()[0].name, "name");
+        let statement = &workspace.read(cx).run_output(cx).statements()[0];
+        assert_eq!(statement.rows().len(), 12);
+        assert_eq!(statement.columns()[0].name, "name");
     });
 }
 
@@ -149,9 +149,9 @@ fn command_period_cancels_a_long_query(cx: &mut TestAppContext) {
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| workspace.read(cx).run_model(cx).is_running());
+    settle(cx, |_, cx| workspace.read(cx).run_output(cx).is_running());
     cx.simulate_keystrokes("cmd-.");
-    settle(cx, |_, cx| !workspace.read(cx).run_model(cx).is_running());
+    settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
     assert_eq!(phase(&workspace, cx), Phase::Failed(EngineError::Cancelled));
 }
 
@@ -164,11 +164,14 @@ fn running_again_during_a_run_replaces_it(cx: &mut TestAppContext) {
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| workspace.read(cx).run_model(cx).is_running());
+    settle(cx, |_, cx| workspace.read(cx).run_output(cx).is_running());
     write(&workspace, cx, "SELECT 1");
     run(&workspace, cx);
-    assert!(matches!(phase(&workspace, cx), Phase::Finished(_)));
-    cx.update(|_, cx| assert_eq!(workspace.read(cx).run_model(cx).rows().len(), 1));
+    assert_eq!(phase(&workspace, cx), Phase::Finished);
+    cx.update(|_, cx| {
+        let output = workspace.read(cx).run_output(cx);
+        assert_eq!(output.statements()[0].rows().len(), 1);
+    });
 }
 
 #[gpui_kit::test]

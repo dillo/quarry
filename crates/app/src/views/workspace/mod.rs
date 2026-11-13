@@ -17,7 +17,7 @@ use quarry_ui_kit::Aurora;
 
 use super::{editor, results::ResultsDelegate, schema::SchemaTree};
 use crate::{
-    model::run::RunModel,
+    model::statements::RunOutput,
     shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
 };
 
@@ -84,9 +84,9 @@ impl Workspace {
         &self.schema
     }
 
-    /// The run the grid shows.
-    pub fn run_model<'a>(&self, cx: &'a App) -> &'a RunModel {
-        self.results.read(cx).delegate().model()
+    /// The latest run.
+    pub fn run_output<'a>(&self, cx: &'a App) -> &'a RunOutput {
+        self.results.read(cx).delegate().output()
     }
 
     /// Whether the user can drag result columns into a new order.

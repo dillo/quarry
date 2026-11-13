@@ -25,7 +25,10 @@ use quarry_ui_kit::{
 
 use super::{SIDEBAR_WIDTH, Workspace};
 use crate::{
-    model::{format, status},
+    model::{
+        format,
+        status::{self, Failure},
+    },
     shell::actions::WORKSPACE,
 };
 
@@ -108,7 +111,7 @@ impl Workspace {
 
     fn results_panel(&self, cx: &Context<Self>) -> AnyElement {
         let colors = Aurora::colors(cx);
-        let failure = status::failure(self.run_model(cx));
+        let failure = status::failure(self.run_output(cx));
         glass_panel(&colors)
             .id("results")
             .size_full()
@@ -116,7 +119,7 @@ impl Workspace {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .children(failure.map(|(message, cancelled)| failure_banner(message, cancelled, cx)))
+            .children(failure.map(|failure| failure_banner(failure, cx)))
             .child(
                 div()
                     .flex_1()
@@ -126,8 +129,8 @@ impl Workspace {
     }
 
     fn status_bar(&self, cx: &Context<Self>) -> AnyElement {
-        let model = self.run_model(cx);
-        let summary = status::run_summary(model, model.elapsed(Instant::now()));
+        let output = self.run_output(cx);
+        let summary = status::run_summary(output, output.elapsed(Instant::now()));
         let cursor = self.editor.read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
         div()
@@ -142,9 +145,9 @@ impl Workspace {
 }
 
 /// The run's error above the grid; a cancel reads quietly.
-fn failure_banner(message: String, cancelled: bool, cx: &App) -> AnyElement {
+fn failure_banner(failure: Failure, cx: &App) -> AnyElement {
     let colors = Aurora::colors(cx);
-    let role = if cancelled {
+    let role = if failure.cancelled {
         Role::TextSecondary
     } else {
         Role::Danger
@@ -157,7 +160,7 @@ fn failure_banner(message: String, cancelled: bool, cx: &App) -> AnyElement {
         .border_color(colors.get(Role::Border))
         .text_size(px(text::BODY))
         .text_color(colors.get(role))
-        .child(message)
+        .child(failure.message)
         .test_support()
         .into_any_element()
 }

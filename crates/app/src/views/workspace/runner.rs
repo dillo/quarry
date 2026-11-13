@@ -15,7 +15,7 @@ use super::{POLL, Workspace};
 use crate::{
     model::{
         drain::{Drained, drain},
-        run::RunModel,
+        statements::RunOutput,
         target,
     },
     shell::actions::{CancelRun, RunStatement},
@@ -31,11 +31,9 @@ impl Workspace {
         let Some(sql) = self.target_sql(cx) else {
             return;
         };
-        let handle = self.session.run(sql);
+        let handle = self.session.run(sql.clone());
         self.results.update(cx, |table, cx| {
-            table
-                .delegate_mut()
-                .reset(RunModel::started(Instant::now()));
+            table.delegate_mut().reset(RunOutput::submitted(sql));
             table.refresh(cx);
         });
         self.run = Some(Self::pump(handle.events.clone(), cx));
@@ -105,9 +103,10 @@ impl Workspace {
     fn apply(&mut self, events: Vec<RunEvent>, vanished: bool, cx: &mut Context<Self>) {
         self.results.update(cx, |table, cx| {
             let delegate = table.delegate_mut();
+            let now = Instant::now();
             let mut reshaped = false;
             for event in events {
-                reshaped |= delegate.apply(event);
+                reshaped |= delegate.apply(event, now);
             }
             if vanished {
                 delegate.end_closed();

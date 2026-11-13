@@ -1,4 +1,4 @@
-//! The results grid: the latest run's rows in a virtualized table.
+//! The results grid: one statement's rows in a virtualized table.
 
 use gpui_kit::{
     AnyElement, App, Context, IntoElement, ParentElement, SharedString, Styled, Window,
@@ -7,7 +7,9 @@ use gpui_kit::{
     prelude::FluentBuilder,
     px,
 };
-use quarry_engine::{session::RunEvent, value::Value};
+use std::time::Instant;
+
+use quarry_engine::{result::Row, session::RunEvent, value::Value};
 use quarry_ui_kit::{
     Aurora, Role,
     tokens::{MONO_FONT, text},
@@ -15,48 +17,73 @@ use quarry_ui_kit::{
 
 use crate::model::{
     format,
-    run::{Phase, RunModel},
+    statements::{Phase, RunOutput, StatementOutput},
 };
 
 /// Default width of a result column.
 pub const COLUMN_WIDTH: f32 = 160.0;
 
-/// Feeds the latest [`RunModel`] to the table.
+/// Feeds one statement of a [`RunOutput`] to the table.
 #[derive(Default)]
 pub struct ResultsDelegate {
-    model: RunModel,
+    output: RunOutput,
+    shown: usize,
     columns: Vec<Column>,
 }
 
 impl ResultsDelegate {
     /// The run being shown.
-    pub fn model(&self) -> &RunModel {
-        &self.model
+    pub fn output(&self) -> &RunOutput {
+        &self.output
     }
 
-    /// Shows `model` from scratch, e.g. when a new run starts.
-    pub fn reset(&mut self, model: RunModel) {
-        self.model = model;
+    /// The index of the statement the grid shows.
+    pub fn shown(&self) -> usize {
+        self.shown
+    }
+
+    /// Shows `output` from scratch, e.g. when a new run starts.
+    pub fn reset(&mut self, output: RunOutput) {
+        self.output = output;
+        self.shown = 0;
         self.columns.clear();
     }
 
-    /// The channel closed without `Done`; see [`RunModel::end_closed`].
+    /// The channel closed without `Done`; see [`RunOutput::end_closed`].
     pub fn end_closed(&mut self) {
-        self.model.end_closed();
+        self.output.end_closed();
     }
 
-    /// Folds `event` in; returns whether the table's columns changed.
-    pub fn apply(&mut self, event: RunEvent) -> bool {
+    /// Folds `event` in, showing each statement as it starts; returns
+    /// whether the table's columns changed.
+    pub fn apply(&mut self, event: RunEvent, now: Instant) -> bool {
+        if let RunEvent::Started { index, .. } = &event {
+            self.shown = *index;
+        }
         let reshapes = matches!(event, RunEvent::Started { .. } | RunEvent::Columns(_));
-        self.model.apply(event);
+        self.output.apply(event, now);
         if reshapes {
-            self.columns = self.model.columns().iter().map(table_column).collect();
+            self.columns = self.shown_columns();
         }
         reshapes
     }
 
+    fn shown_columns(&self) -> Vec<Column> {
+        self.output
+            .statement(self.shown)
+            .map(|statement| statement.columns().iter().map(table_column).collect())
+            .unwrap_or_default()
+    }
+
+    fn rows(&self) -> &[Row] {
+        self.output
+            .statement(self.shown)
+            .map(StatementOutput::rows)
+            .unwrap_or_default()
+    }
+
     fn value(&self, row: usize, col: usize) -> Option<&Value> {
-        self.model.rows().get(row)?.get(col)
+        self.rows().get(row)?.get(col)
     }
 }
 
@@ -70,7 +97,7 @@ impl TableDelegate for ResultsDelegate {
     }
 
     fn rows_count(&self, _: &App) -> usize {
-        self.model.rows().len()
+        self.rows().len()
     }
 
     fn column(&self, col_ix: usize, _: &App) -> Column {
@@ -87,8 +114,7 @@ impl TableDelegate for ResultsDelegate {
         _: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        let value = self.value(row_ix, col_ix).cloned().unwrap_or(Value::Null);
-        cell(&value, cx)
+        cell(self.value(row_ix, col_ix).unwrap_or(&Value::Null), cx)
     }
 
     fn cell_text(&self, row_ix: usize, col_ix: usize, _: &App) -> String {
@@ -102,7 +128,7 @@ impl TableDelegate for ResultsDelegate {
         _: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        empty_state(self.model.phase(), cx)
+        empty_state(self.output.phase(), cx)
     }
 }
 
@@ -126,8 +152,9 @@ fn empty_state(phase: &Phase, cx: &App) -> AnyElement {
     let colors = Aurora::colors(cx);
     let (message, role) = match phase {
         Phase::Idle => ("Run a statement with ⌘↵.".to_owned(), Role::TextMuted),
+        Phase::Waiting => ("Waiting for the previous run…".to_owned(), Role::TextMuted),
         Phase::Running => ("Running…".to_owned(), Role::TextMuted),
-        Phase::Finished(_) | Phase::Failed(_) => ("No rows.".to_owned(), Role::TextMuted),
+        Phase::Finished | Phase::Failed(_) => ("No rows.".to_owned(), Role::TextMuted),
     };
     div()
         .size_full()

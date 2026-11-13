@@ -5,8 +5,10 @@
 
 pub mod drain;
 pub mod format;
-pub mod run;
+pub mod messages;
+pub mod plan_tree;
 pub mod schema_tree;
+pub mod statements;
 pub mod status;
 pub mod tabs;
 pub mod target;
