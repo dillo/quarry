@@ -23,6 +23,9 @@ pub enum EngineError {
     /// No driver handles this connection string.
     #[error("Unsupported connection: {0}")]
     Unsupported(String),
+    /// The driver cannot show query plans.
+    #[error("This database can't show query plans.")]
+    PlanUnsupported,
     /// The session thread has stopped.
     #[error("The query worker stopped unexpectedly.")]
     WorkerGone,
@@ -50,6 +53,10 @@ mod tests {
         assert_eq!(
             EngineError::Unsupported("x:y".to_owned()).to_string(),
             "Unsupported connection: x:y"
+        );
+        assert_eq!(
+            EngineError::PlanUnsupported.to_string(),
+            "This database can't show query plans."
         );
         assert_eq!(
             EngineError::WorkerGone.to_string(),
