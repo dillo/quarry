@@ -4,6 +4,7 @@
 //! runs; a tab follows its run's events (see [`pump`]) and tells the
 //! workspace when the run ends.
 
+mod copy;
 mod explain;
 mod layout;
 mod pump;
@@ -29,12 +30,14 @@ use crate::model::{
 };
 
 /// What a tab tells the workspace.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QueryTabEvent {
     /// The tab's run ended; the schema may have changed.
     RunEnded,
     /// The user changed the editor's text.
     Edited,
+    /// A copy finished; the note says what it copied.
+    Copied(String),
 }
 
 /// What a run was asked to run.

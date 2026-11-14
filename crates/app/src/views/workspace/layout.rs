@@ -44,6 +44,10 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::focus_sidebar))
             .on_action(cx.listener(Self::focus_editor))
             .on_action(cx.listener(Self::cycle_theme))
+            .on_action(cx.listener(Self::copy_tsv))
+            .on_action(cx.listener(Self::copy_csv))
+            .on_action(cx.listener(Self::copy_json))
+            .on_action(cx.listener(Self::open_palette))
             .size_full()
             .flex()
             .bg(window_background(&colors))
@@ -67,7 +71,6 @@ impl Workspace {
             .flex()
             .flex_col()
             .gap(px(space::SM))
-            .overflow_y_scroll()
             .child(
                 div()
                     .px(px(space::SM))
@@ -107,6 +110,9 @@ impl Workspace {
         if let Some(problem) = self.drafts_problem() {
             bar = bar.left(drafts_warning(problem));
         }
+        if let Some(note) = self.note() {
+            bar = bar.left(copy_note(note));
+        }
         div()
             .id("status")
             .child(bar.right(format!("{summary} · {place}")))
@@ -121,6 +127,15 @@ fn drafts_warning(problem: &str) -> AnyElement {
         .id("drafts-warning")
         .child("Drafts aren't being saved")
         .tooltip(move |window, cx| Tooltip::new(reason.clone()).build(window, cx))
+        .test_support()
+        .into_any_element()
+}
+
+/// What the last copy took, as in "Copied 12 rows as CSV".
+fn copy_note(note: &str) -> AnyElement {
+    div()
+        .id("copy-note")
+        .child(note.to_owned())
         .test_support()
         .into_any_element()
 }

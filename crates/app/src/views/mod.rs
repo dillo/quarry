@@ -1,6 +1,8 @@
 //! GPUI views: each renders one region of the workspace.
 
 pub mod editor;
+pub mod palette;
+pub mod poll;
 pub mod query_tab;
 pub mod results;
 pub mod schema;

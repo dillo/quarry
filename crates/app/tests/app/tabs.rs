@@ -2,14 +2,16 @@
 //! drafts across restarts.
 
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
+use gpui_kit::{
+    Entity, TestAppContext, VisualTestContext, component::WindowExt, test::TestWindowExt,
+};
 use quarry::{
-    model::statements::Phase,
-    views::workspace::{AUTOSAVE, Workspace, tab_element_id},
+    model::{save_order::SaveOrder, statements::Phase},
+    views::workspace::{AUTOSAVE, Workspace, save_in_order, tab_element_id},
 };
 use quarry_store::{
     drafts::{Draft, DraftStore, Drafts},
@@ -17,7 +19,7 @@ use quarry_store::{
     sqlite::SqliteStore,
 };
 
-use super::support::{drawn, install, open_with as open, settle};
+use super::support::{drawn, install, open_with as open, settle, write};
 
 /// A store whose every read and write fails.
 struct Broken;
@@ -89,6 +91,19 @@ fn closing_the_only_tab_opens_a_fresh_one(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn command_w_activates_the_right_hand_neighbour(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t cmd-t cmd-{");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+    cx.simulate_keystrokes("cmd-w");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+}
+
+#[gpui_kit::test]
 fn next_and_previous_switch_tabs_and_wrap(cx: &mut TestAppContext) {
     install(cx);
     let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
@@ -124,9 +139,9 @@ fn each_tab_keeps_its_own_results(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-enter");
     let finished = |cx: &mut VisualTestContext| {
-        settle(cx, |_, cx| {
+        assert!(settle(cx, |_, cx| {
             workspace.read(cx).run_output(cx).phase() == &Phase::Finished
-        });
+        }));
     };
     finished(cx);
     cx.simulate_keystrokes("cmd-t");
@@ -153,7 +168,7 @@ fn drafts_come_back_in_a_new_workspace(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("cmd-t");
     cx.simulate_input("SELECT 42");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     let saved = store.load().expect("the drafts load");
     assert_eq!(
         (saved.active, saved.tabs[1].text.as_str()),
@@ -171,6 +186,25 @@ fn drafts_come_back_in_a_new_workspace(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_closed_tabs_are_kept_through_a_save(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let closed = vec![draft(0, "Query 4", "SELECT 4")];
+    let saved = Drafts {
+        tabs: vec![draft(1, "Query 1", "SELECT 1")],
+        active: 0,
+        closed: closed.clone(),
+    };
+    store.save(&saved).expect("a first save");
+    let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    assert!(settle(cx, |_, _| true));
+    let loaded = store.load().expect("the drafts load");
+    assert_eq!(loaded.tabs.len(), 2);
+    assert_eq!(loaded.closed, closed);
+}
+
+#[gpui_kit::test]
 fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
     install(cx);
     let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
@@ -178,6 +212,7 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
         .save(&Drafts {
             tabs: vec![draft(1, "Query 1", "")],
             active: 0,
+            closed: Vec::new(),
         })
         .expect("a first save");
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
@@ -228,9 +263,9 @@ fn a_store_that_failed_to_load_is_never_saved_over(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_input("SELECT 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     cx.simulate_keystrokes("cmd-t");
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(!saved.load(Ordering::SeqCst));
     cx.update(|_, cx| {
         assert_eq!(
@@ -267,11 +302,11 @@ fn the_warning_clears_after_a_later_save_succeeds(cx: &mut TestAppContext) {
     let (_workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_input("SELECT 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(drawn(cx, "drafts-warning"));
     cx.simulate_input(" + 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(!drawn(cx, "drafts-warning"));
 }
 
@@ -285,4 +320,105 @@ fn closing_the_window_saves_the_last_edits(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let loaded = store.load().expect("the drafts load");
     assert!(loaded.tabs[0].text.starts_with("SELECT 9"));
+}
+
+#[test]
+fn a_delayed_older_snapshot_is_skipped() {
+    let store = SqliteStore::in_memory().expect("an in-memory store");
+    let saves = Mutex::new(SaveOrder::default());
+    let (older, newer) = {
+        let mut order = saves.lock().expect("an unpoisoned lock");
+        (order.issue(), order.issue())
+    };
+    let snapshot = |text: &str| Drafts {
+        tabs: vec![draft(1, "Query 1", text)],
+        active: 0,
+        closed: Vec::new(),
+    };
+    assert_eq!(
+        save_in_order(&store, &saves, newer, &snapshot("newer")),
+        Some(Ok(()))
+    );
+    assert_eq!(
+        save_in_order(&store, &saves, older, &snapshot("older")),
+        None
+    );
+    assert_eq!(store.load(), Ok(snapshot("newer")));
+}
+
+fn closed_titles(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<String> {
+    cx.update(|_, cx| {
+        let closed = workspace.read(cx).closed_tabs();
+        closed.iter().map(|draft| draft.title.clone()).collect()
+    })
+}
+
+/// Opens the palette, types `query` and picks the first match.
+fn pick(cx: &mut VisualTestContext, query: &str) {
+    cx.simulate_keystrokes("cmd-k");
+    cx.simulate_input(query);
+    cx.simulate_keystrokes("enter");
+    assert!(settle(cx, |window, cx| !window.has_active_dialog(cx)));
+}
+
+#[gpui_kit::test]
+fn a_closed_tab_reopens_from_the_palette_and_saves_at_once(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t cmd-t cmd-{");
+    write(&workspace, cx, "\n  SELECT 42\nFROM astronauts");
+    cx.simulate_keystrokes("cmd-w cmd-{");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 3"]);
+    assert_eq!(closed_titles(&workspace, cx), ["Query 2"]);
+    pick(cx, "query 2");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+    assert_eq!(text(&workspace, cx), "\n  SELECT 42\nFROM astronauts");
+    assert!(closed_titles(&workspace, cx).is_empty());
+    let saved = store.load().expect("the drafts load");
+    assert_eq!((saved.tabs.len(), saved.closed.len()), (3, 0));
+}
+
+#[gpui_kit::test]
+fn the_palette_shows_a_closed_tab_with_its_first_line(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    write(&workspace, cx, "\n  SELECT 42\nFROM astronauts");
+    cx.simulate_keystrokes("cmd-w cmd-k");
+    cx.run_until_parked();
+    let group = cx.update(|_, cx| {
+        let palette = workspace.read(cx).palette().expect("the palette is open");
+        palette.read(cx).groups()[1].clone()
+    });
+    assert_eq!(group.title, "Recently closed");
+    assert_eq!(group.items[0].label, "Query 2");
+    assert_eq!(group.items[0].detail, "SELECT 42");
+}
+
+#[gpui_kit::test]
+fn closing_the_only_tab_remembers_it(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-w");
+    assert_eq!(titles(&workspace, cx), ["Query 1"]);
+    let closed = cx.update(|_, cx| workspace.read(cx).closed_tabs().to_vec());
+    assert_eq!(closed.len(), 1);
+    assert!(closed[0].text.starts_with("-- Welcome"));
+    assert!(settle(cx, |_, _| true));
+    assert_eq!(store.load().expect("the drafts load").closed.len(), 1);
+}
+
+#[gpui_kit::test]
+fn reopening_works_while_drafts_are_not_saved(cx: &mut TestAppContext) {
+    let (workspace, cx) = super::support::open(cx).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    write(&workspace, cx, "SELECT 7");
+    cx.simulate_keystrokes("cmd-w");
+    pick(cx, "query 2");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2"]);
+    assert_eq!(text(&workspace, cx), "SELECT 7");
 }

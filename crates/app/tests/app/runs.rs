@@ -15,7 +15,11 @@ use quarry::{
         results::{self, statement_tab_id},
     },
 };
-use quarry_engine::{error::EngineError, session::RunEvent};
+use quarry_engine::{
+    error::EngineError,
+    plan::{Plan, PlanNode},
+    session::RunEvent,
+};
 
 use super::support::{drawn, open, phase, run_with, settle, write};
 
@@ -74,7 +78,10 @@ fn a_view_picked_during_a_script_survives_its_end(cx: &mut TestAppContext) {
         });
     });
     assert!(sender.try_send(RunEvent::Done).is_ok());
-    settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
+    assert!(settle(cx, |_, cx| !workspace
+        .read(cx)
+        .run_output(cx)
+        .is_running()));
     cx.update(|_, cx| assert_eq!(tab.read(cx).view_id(), results::PLAN));
 }
 
@@ -153,19 +160,19 @@ fn a_run_in_another_tab_waits_for_the_running_one(cx: &mut TestAppContext) {
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         workspace.read(cx).run_output(cx).phase() == &Phase::Running
-    });
+    }));
     cx.simulate_keystrokes("cmd-t");
     cx.simulate_input("SELECT 1");
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert_eq!(phase(&workspace, cx), Phase::Waiting);
     cx.simulate_keystrokes("cmd-{ cmd-.");
     cx.simulate_keystrokes("cmd-}");
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         workspace.read(cx).run_output(cx).phase() == &Phase::Finished
-    });
+    }));
     assert_eq!(phase(&workspace, cx), Phase::Finished);
 }
 
@@ -194,13 +201,13 @@ fn cancelling_a_queued_run_ends_it_while_the_other_tab_still_runs(cx: &mut TestA
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         workspace.read(cx).run_output(cx).phase() == &Phase::Running
-    });
+    }));
     cx.simulate_keystrokes("cmd-t");
     cx.simulate_input("SELECT 1");
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert_eq!(phase(&workspace, cx), Phase::Waiting);
     let ended = record_run_ends(&workspace, cx);
     cx.simulate_keystrokes("cmd-.");
@@ -219,12 +226,12 @@ fn command_e_shows_the_statement_plan(cx: &mut TestAppContext) {
         cx.update(|_, cx| workspace.read(cx).active_tab().read(cx).plan().clone())
     };
     assert_eq!(plan(cx), PlanState::Planning);
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         matches!(
             workspace.read(cx).active_tab().read(cx).plan(),
             PlanState::Ready(_)
         )
-    });
+    }));
     let rows = vec![PlanRow {
         depth: 0,
         label: "SEARCH astronauts USING INTEGER PRIMARY KEY (rowid=?)".to_owned(),
@@ -244,12 +251,12 @@ fn a_statement_that_cannot_be_planned_says_why(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     write(&workspace, cx, "SELECT * FROM nowhere");
     cx.simulate_keystrokes("cmd-e");
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         matches!(
             workspace.read(cx).active_tab().read(cx).plan(),
             PlanState::Failed(_)
         )
-    });
+    }));
     cx.update(|_, cx| {
         let tab = workspace.read(cx).active_tab().read(cx);
         assert_eq!(
@@ -258,4 +265,81 @@ fn a_statement_that_cannot_be_planned_says_why(cx: &mut TestAppContext) {
         );
         assert_eq!(tab.output(cx).phase(), &Phase::Idle, "explain runs nothing");
     });
+}
+
+#[gpui_kit::test]
+fn command_return_from_messages_returns_to_results(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    let tab = cx.update(|_, cx| workspace.read(cx).active_tab().clone());
+    cx.update(|_, cx| tab.update(cx, |tab, cx| tab.select_view(results::MESSAGES, cx)));
+    write(&workspace, cx, "SELECT 1");
+    run_with(&workspace, cx, "cmd-enter");
+    cx.update(|_, cx| assert_eq!(tab.read(cx).view_id(), results::RESULTS));
+}
+
+#[gpui_kit::test]
+fn run_all_with_one_row_returning_statement_shows_no_result_tabs(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(
+        &workspace,
+        cx,
+        "CREATE TABLE t (x); SELECT count(*) FROM astronauts;",
+    );
+    run_with(&workspace, cx, "cmd-shift-r");
+    assert_eq!(phase(&workspace, cx), Phase::Finished);
+    assert!(!drawn(cx, statement_tab_id(0)));
+    assert!(!drawn(cx, statement_tab_id(1)));
+}
+
+#[gpui_kit::test]
+fn the_failure_banner_shows_over_messages(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    write(
+        &workspace,
+        cx,
+        "CREATE TABLE a (x); INSERT INTO nowhere VALUES (1);",
+    );
+    run_with(&workspace, cx, "cmd-shift-r");
+    cx.update(|_, cx| {
+        assert_eq!(
+            workspace.read(cx).active_tab().read(cx).view_id(),
+            results::MESSAGES
+        );
+    });
+    assert!(drawn(cx, results::MESSAGES));
+    assert!(drawn(cx, "run-failure"));
+}
+
+fn one_step(label: &str) -> Plan {
+    Plan {
+        nodes: vec![PlanNode {
+            label: label.to_owned(),
+            children: Vec::new(),
+        }],
+    }
+}
+
+#[gpui_kit::test]
+fn a_second_explain_replaces_one_still_pending(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    let tab = cx.update(|_, cx| workspace.read(cx).active_tab().clone());
+    let (first, first_reply) = async_channel::unbounded();
+    let (second, second_reply) = async_channel::unbounded();
+    cx.update(|_, cx| {
+        tab.update(cx, |tab, cx| {
+            tab.explain(first_reply, cx);
+            tab.explain(second_reply, cx);
+        });
+    });
+    assert!(
+        settle(cx, |_, _| first.is_closed()),
+        "the pending Explain is dropped"
+    );
+    assert!(second.try_send(Ok(one_step("second"))).is_ok());
+    assert!(settle(cx, |_, cx| tab.read(cx).plan() != &PlanState::Planning));
+    let rows = vec![PlanRow {
+        depth: 0,
+        label: "second".to_owned(),
+    }];
+    cx.update(|_, cx| assert_eq!(tab.read(cx).plan(), &PlanState::Ready(rows)));
 }

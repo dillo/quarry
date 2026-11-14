@@ -4,29 +4,43 @@
 //! [`tabs`] opens, closes and switches tabs, [`drafts`] saves them,
 //! [`runs`] submits runs and reads the schema, and [`layout`] draws it.
 
+mod copy;
 mod drafts;
 mod layout;
+mod palette;
 mod runs;
 mod tab_strip;
 mod tabs;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use gpui_kit::{
-    App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, Window,
-    component::input::EditorState,
+    App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, WeakEntity,
+    Window, component::input::EditorState,
 };
 use quarry_engine::session::Session;
-use quarry_store::drafts::{DraftStore, Drafts};
+use quarry_store::drafts::{Draft, DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
 pub use self::{
-    drafts::{AUTOSAVE, SavedTabs},
+    copy::NOTE_TIME,
+    drafts::{AUTOSAVE, SavedTabs, save_in_order},
     tab_strip::tab_element_id,
 };
-use super::{editor, query_tab::QueryTab, schema::SchemaTree};
+use super::{
+    editor,
+    palette::{PaletteSourceRegistry, dialog::Palette},
+    query_tab::QueryTab,
+    schema::SchemaTree,
+};
 use crate::{
     model::{
+        save_order::SaveOrder,
         statements::RunOutput,
         tabs::{Tab, TabId, TabList},
     },
@@ -47,16 +61,22 @@ pub struct Workspace {
     database: String,
     tabs: TabList,
     views: BTreeMap<TabId, Entity<QueryTab>>,
+    closed: Vec<Draft>,
     store: Arc<dyn DraftStore>,
     open_problem: Option<String>,
     save_problem: Option<String>,
     autosave: Option<Task<()>>,
-    saving: Option<Task<()>>,
+    saves: Arc<Mutex<SaveOrder>>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
     schema_read: Option<Task<()>>,
+    note: Option<String>,
+    note_timer: Option<Task<()>>,
+    copying: Option<Task<()>>,
+    palette: Rc<PaletteSourceRegistry>,
+    shown_palette: WeakEntity<Palette>,
     _quit: Subscription,
 }
 
@@ -76,16 +96,22 @@ impl Workspace {
             database: database.to_owned(),
             tabs: restored_tabs(&drafts),
             views: BTreeMap::new(),
+            closed: drafts.closed.clone(),
             store,
             open_problem: problem,
             save_problem: None,
             autosave: None,
-            saving: None,
+            saves: Arc::default(),
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             schema_read: None,
+            note: None,
+            note_timer: None,
+            copying: None,
+            palette: Rc::new(PaletteSourceRegistry::standard()),
+            shown_palette: WeakEntity::new_invalid(),
             _quit: cx.on_app_quit(|workspace, cx| {
                 workspace.save_before_quit(cx);
                 async {}
@@ -148,6 +174,21 @@ impl Workspace {
         }
         self.sidebar_open = true;
         window.on_next_frame(move |window, cx| focus_first_stop(&container, window, cx));
+        cx.notify();
+    }
+
+    /// Opens the sidebar if it is closed, then expands table `name`,
+    /// scrolls to it and focuses its row. A table that is gone re-reads the
+    /// schema and focuses nothing.
+    pub fn reveal_table(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let revealed = self
+            .schema
+            .update(cx, |tree, cx| tree.reveal(name, window, cx));
+        if !revealed {
+            self.read_schema(cx);
+            return;
+        }
+        self.sidebar_open = true;
         cx.notify();
     }
 

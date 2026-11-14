@@ -1,17 +1,16 @@
 //! Submits the active tab's runs and plans to the session, and reads the
 //! schema.
-//!
-//! The schema reply is polled once per [`POLL`] rather than awaited (see
-//! [`crate::model::drain`]).
 
 use gpui_kit::{Context, Window};
 use quarry_engine::splitter;
 
-use super::{POLL, Workspace};
+use super::Workspace;
 use crate::{
-    model::drain,
     shell::actions::{CancelRun, Explain, RunAll, RunStatement},
-    views::query_tab::{QueryTab, RunScope},
+    views::{
+        poll::poll_reply,
+        query_tab::{QueryTab, RunScope},
+    },
 };
 
 impl Workspace {
@@ -65,14 +64,8 @@ impl Workspace {
         let reply = self.session.schema();
         let tree = self.schema.clone();
         self.schema_read = Some(cx.spawn(async move |_, cx| {
-            let mut answer = None;
-            while answer.is_none() {
-                cx.background_executor().timer(POLL).await;
-                answer = drain::reply(drain::drain(&reply));
-            }
-            if let Some(schema) = answer {
-                tree.update(cx, |tree, cx| tree.set(schema, cx));
-            }
+            let schema = poll_reply(reply, cx.background_executor().clone()).await;
+            tree.update(cx, |tree, cx| tree.set(schema, cx));
         }));
     }
 }

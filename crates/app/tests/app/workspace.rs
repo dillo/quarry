@@ -84,9 +84,15 @@ fn command_period_cancels_a_long_query(cx: &mut TestAppContext) {
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| workspace.read(cx).run_output(cx).is_running());
+    assert!(settle(cx, |_, cx| workspace
+        .read(cx)
+        .run_output(cx)
+        .is_running()));
     cx.simulate_keystrokes("cmd-.");
-    settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
+    assert!(settle(cx, |_, cx| !workspace
+        .read(cx)
+        .run_output(cx)
+        .is_running()));
     assert_eq!(phase(&workspace, cx), Phase::Failed(EngineError::Cancelled));
 }
 
@@ -99,7 +105,10 @@ fn running_again_during_a_run_replaces_it(cx: &mut TestAppContext) {
         "SELECT count(*) FROM telemetry a, telemetry b",
     );
     cx.simulate_keystrokes("cmd-enter");
-    settle(cx, |_, cx| workspace.read(cx).run_output(cx).is_running());
+    assert!(settle(cx, |_, cx| workspace
+        .read(cx)
+        .run_output(cx)
+        .is_running()));
     write(&workspace, cx, "SELECT 1");
     run(&workspace, cx);
     assert_eq!(phase(&workspace, cx), Phase::Finished);
@@ -114,20 +123,20 @@ fn creating_a_table_adds_it_to_the_schema_tree(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     write(&workspace, cx, "CREATE TABLE notes (body TEXT)");
     run(&workspace, cx);
-    settle(cx, |window, cx| {
+    assert!(settle(cx, |window, cx| {
         window.draw(cx).clear(cx);
         window.try_find(table_row_id("notes")).is_some()
-    });
+    }));
     cx.update(|window, _| assert!(window.try_find(table_row_id("notes")).is_some()));
 }
 
 #[gpui_kit::test]
 fn clicking_a_table_expands_it(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
-    settle(cx, |window, cx| {
+    assert!(settle(cx, |window, cx| {
         window.draw(cx).clear(cx);
         window.try_find(table_row_id("missions")).is_some()
-    });
+    }));
     cx.update(|window, cx| window.click(table_row_id("missions"), cx));
     cx.update(|_, cx| {
         let tree = workspace.read(cx).schema().read(cx);
@@ -156,10 +165,10 @@ fn command_shift_t_cycles_the_theme(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 fn command_one_focuses_the_first_table_and_return_expands_it(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
-    settle(cx, |window, cx| {
+    assert!(settle(cx, |window, cx| {
         window.draw(cx).clear(cx);
         window.try_find(table_row_id("astronauts")).is_some()
-    });
+    }));
     cx.simulate_keystrokes("cmd-1");
     cx.update(|window, cx| {
         window.draw(cx).clear(cx);
@@ -176,10 +185,10 @@ fn command_one_focuses_the_first_table_and_return_expands_it(cx: &mut TestAppCon
 fn command_two_returns_focus_to_the_editor(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-1");
-    settle(cx, |window, cx| {
+    assert!(settle(cx, |window, cx| {
         window.draw(cx).clear(cx);
         true
-    });
+    }));
     cx.update(|window, cx| {
         let editor = workspace.read(cx).editor(cx);
         let editor = editor.read(cx);
@@ -212,7 +221,10 @@ fn a_run_whose_channel_closes_without_done_reports_a_lost_worker(cx: &mut TestAp
             tab.follow("SELECT 1".to_owned(), RunScope::Statement, events, cx);
         });
     });
-    settle(cx, |_, cx| !workspace.read(cx).run_output(cx).is_running());
+    assert!(settle(cx, |_, cx| !workspace
+        .read(cx)
+        .run_output(cx)
+        .is_running()));
     assert_eq!(
         phase(&workspace, cx),
         Phase::Failed(EngineError::WorkerGone)

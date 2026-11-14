@@ -83,3 +83,41 @@ fn space_clicks_and_the_next_stop_is_the_tab(cx: &mut TestAppContext) {
     press(cx, "space");
     assert_eq!((presses.row.get(), presses.tab.get()), (0, 1));
 }
+
+struct Tracked {
+    handle: gpui_kit::FocusHandle,
+    presses: Rc<Presses>,
+}
+
+impl Render for Tracked {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let row = Rc::clone(&self.presses);
+        div().size_full().child(
+            SidebarItem::new("tracked", "Tracked")
+                .track_focus(self.handle.clone())
+                .on_click(move |_, _, _| row.row.set(row.row.get() + 1)),
+        )
+    }
+}
+
+#[gpui_kit::test]
+fn a_row_with_a_tracked_handle_takes_focus_from_code(cx: &mut TestAppContext) {
+    let installed = cx.update(|cx| {
+        gpui_kit::init(cx);
+        Aurora::install(Preference::Dark, cx)
+    });
+    assert_eq!(installed, Ok(()));
+    let presses = Rc::new(Presses::default());
+    let view = Rc::clone(&presses);
+    let (tracked, cx) = cx.add_window_view(move |_, cx| Tracked {
+        handle: cx.focus_handle().tab_index(0).tab_stop(true),
+        presses: view,
+    });
+    cx.update(|window, cx| {
+        let handle = tracked.read(cx).handle.clone();
+        window.focus(&handle, cx);
+        window.draw(cx).clear(cx);
+    });
+    press(cx, "enter");
+    assert_eq!(presses.row.get(), 1);
+}
