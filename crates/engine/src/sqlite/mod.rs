@@ -1,6 +1,7 @@
 //! The built-in SQLite driver (bundled `SQLite`, no system library needed).
 
 mod convert;
+mod explain;
 mod introspect;
 mod run;
 
@@ -11,6 +12,7 @@ use rusqlite::Connection;
 use crate::{
     driver::{Canceller, Driver},
     error::EngineError,
+    plan::Plan,
     result::{RowSink, Summary},
     schema::Schema,
 };
@@ -79,6 +81,10 @@ impl Driver for SqliteDriver {
 
     fn schema(&mut self) -> Result<Schema, EngineError> {
         introspect::schema(&self.connection)
+    }
+
+    fn plan(&mut self, sql: &str) -> Result<Plan, EngineError> {
+        explain::plan(&self.connection, sql)
     }
 
     fn canceller(&self) -> Canceller {

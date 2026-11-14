@@ -1,6 +1,6 @@
 # ADR 0009: App shell structure
 
-- **Status:** Accepted
+- **Status:** Accepted; tabs, per-statement results and run driving are updated by ADR 0010
 - **Date:** 2026-11-09
 
 ## Context

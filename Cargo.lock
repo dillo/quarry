@@ -5605,7 +5605,9 @@ dependencies = [
  "async-channel",
  "gpui-kit",
  "quarry-engine",
+ "quarry-store",
  "quarry-ui-kit",
+ "tempfile",
 ]
 
 [[package]]
@@ -5625,6 +5627,11 @@ dependencies = [
 [[package]]
 name = "quarry-store"
 version = "0.0.0"
+dependencies = [
+ "rusqlite",
+ "tempfile",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "quarry-ui-kit"
