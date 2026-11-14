@@ -60,7 +60,6 @@ pub struct QueryTab {
     pump: Option<Task<()>>,
     plan: PlanState,
     planning: Option<Task<()>>,
-    copying: Option<Task<()>>,
     _edits: Subscription,
 }
 
@@ -89,7 +88,6 @@ impl QueryTab {
             pump: None,
             plan: PlanState::Idle,
             planning: None,
-            copying: None,
             _edits: edits,
         }
     }

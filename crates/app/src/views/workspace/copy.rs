@@ -24,11 +24,12 @@ impl Workspace {
         self.copy("json", cx);
     }
 
-    /// Copies the active tab's result as `format`.
+    /// Copies the active tab's result as `format`. The clipboard and the
+    /// note belong to the workspace, so it keeps the copy still formatting:
+    /// a newer copy, even one with nothing to copy, drops it.
     fn copy(&mut self, format: &'static str, cx: &mut Context<Self>) {
-        self.active_tab()
-            .clone()
-            .update(cx, |tab, cx| tab.copy(format, cx));
+        let tab = self.active_tab().clone();
+        self.copying = tab.update(cx, |tab, cx| tab.copy(format, cx));
     }
 
     /// Shows `note` in the status bar for [`NOTE_TIME`], replacing any

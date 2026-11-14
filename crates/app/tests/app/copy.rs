@@ -3,7 +3,7 @@
 
 use gpui_kit::{Entity, Focusable, TestAppContext, VisualTestContext};
 use quarry::{
-    shell::actions::{CopyCsv, CopyJson, CopyTsv},
+    shell::actions::{CopyCsv, CopyJson, CopyTsv, NewTab, NextTab, PreviousTab},
     views::workspace::{NOTE_TIME, Workspace},
 };
 
@@ -164,4 +164,29 @@ fn command_c_in_the_editor_copies_the_editor_text(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(clipboard(cx).as_deref(), Some("SELECT"));
     assert_eq!(note(&workspace, cx), None);
+}
+
+/// Runs [`TWO_ROWS`] in the first tab and `second` in a new one, then goes
+/// back to the first tab with its grid focused.
+fn two_tabs(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, second: &str) {
+    two_rows_in_the_grid(workspace, cx);
+    cx.update(|window, cx| window.dispatch_action(Box::new(NewTab), cx));
+    write(workspace, cx, second);
+    run(workspace, cx);
+    cx.update(|window, cx| window.dispatch_action(Box::new(PreviousTab), cx));
+}
+
+#[gpui_kit::test]
+fn nothing_to_copy_replaces_a_copy_still_formatting(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    two_tabs(&workspace, cx, "SELECT 1 WHERE 0");
+    cx.update(|window, cx| {
+        window.dispatch_action(Box::new(CopyCsv), cx);
+        window.dispatch_action(Box::new(NextTab), cx);
+        window.dispatch_action(Box::new(CopyTsv), cx);
+    });
+    assert!(settle(cx, |_, cx| workspace.read(cx).note().is_some()));
+    cx.run_until_parked();
+    assert_eq!(note(&workspace, cx).as_deref(), Some("Nothing to copy"));
+    assert_eq!(clipboard(cx), None);
 }

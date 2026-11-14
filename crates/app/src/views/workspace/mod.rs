@@ -74,6 +74,7 @@ pub struct Workspace {
     schema_read: Option<Task<()>>,
     note: Option<String>,
     note_timer: Option<Task<()>>,
+    copying: Option<Task<()>>,
     palette: Rc<PaletteSourceRegistry>,
     shown_palette: WeakEntity<Palette>,
     _quit: Subscription,
@@ -108,6 +109,7 @@ impl Workspace {
             schema_read: None,
             note: None,
             note_timer: None,
+            copying: None,
             palette: Rc::new(PaletteSourceRegistry::standard()),
             shown_palette: WeakEntity::new_invalid(),
             _quit: cx.on_app_quit(|workspace, cx| {
