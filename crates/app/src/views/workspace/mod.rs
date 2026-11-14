@@ -17,7 +17,7 @@ use gpui_kit::{
     component::input::EditorState,
 };
 use quarry_engine::session::Session;
-use quarry_store::drafts::{DraftStore, Drafts};
+use quarry_store::drafts::{Draft, DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
 pub use self::{
@@ -47,6 +47,7 @@ pub struct Workspace {
     database: String,
     tabs: TabList,
     views: BTreeMap<TabId, Entity<QueryTab>>,
+    closed: Vec<Draft>,
     store: Arc<dyn DraftStore>,
     open_problem: Option<String>,
     save_problem: Option<String>,
@@ -76,6 +77,7 @@ impl Workspace {
             database: database.to_owned(),
             tabs: restored_tabs(&drafts),
             views: BTreeMap::new(),
+            closed: drafts.closed.clone(),
             store,
             open_problem: problem,
             save_problem: None,

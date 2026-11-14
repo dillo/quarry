@@ -61,7 +61,8 @@ impl Workspace {
             .or(self.open_problem.as_deref())
     }
 
-    /// Every tab's title and text, and which one is active.
+    /// Every tab's title and text, which one is active, and the recently
+    /// closed tabs.
     pub fn snapshot(&self, cx: &App) -> Drafts {
         let tabs = self
             .tabs
@@ -78,6 +79,7 @@ impl Workspace {
         Drafts {
             tabs,
             active: self.tabs.active(),
+            closed: self.closed.clone(),
         }
     }
 

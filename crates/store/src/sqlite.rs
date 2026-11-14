@@ -63,42 +63,85 @@ fn index(position: usize) -> i64 {
     i64::try_from(position).unwrap_or(i64::MAX)
 }
 
+/// The open tabs, left to right.
+fn load_tabs(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
+    let mut statement =
+        connection.prepare("SELECT id, title, text FROM drafts ORDER BY position")?;
+    let tabs = statement.query_map([], |row| {
+        Ok(Draft {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            text: row.get(2)?,
+        })
+    })?;
+    Ok(tabs.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The recently closed tabs, newest first, each with id 0.
+fn load_closed(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
+    let mut statement =
+        connection.prepare("SELECT title, text FROM closed_tabs ORDER BY position")?;
+    let closed = statement.query_map([], |row| {
+        Ok(Draft {
+            id: 0,
+            title: row.get(0)?,
+            text: row.get(1)?,
+        })
+    })?;
+    Ok(closed.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The saved active index, or 0 when none was saved.
+fn load_active(connection: &Connection) -> Result<usize, StoreError> {
+    let active: Option<i64> = connection
+        .query_row("SELECT value FROM state WHERE key = 'active'", [], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    Ok(usize::try_from(active.unwrap_or(0)).unwrap_or(0))
+}
+
+/// Replaces the open tabs.
+fn save_tabs(connection: &Connection, tabs: &[Draft]) -> Result<(), StoreError> {
+    connection.execute("DELETE FROM drafts", [])?;
+    for (position, draft) in tabs.iter().enumerate() {
+        connection.execute(
+            "INSERT INTO drafts (id, position, title, text) VALUES (?1, ?2, ?3, ?4)",
+            params![draft.id, index(position), draft.title, draft.text],
+        )?;
+    }
+    Ok(())
+}
+
+/// Replaces the recently closed tabs.
+fn save_closed(connection: &Connection, closed: &[Draft]) -> Result<(), StoreError> {
+    connection.execute("DELETE FROM closed_tabs", [])?;
+    for (position, draft) in closed.iter().enumerate() {
+        connection.execute(
+            "INSERT INTO closed_tabs (position, title, text) VALUES (?1, ?2, ?3)",
+            params![index(position), draft.title, draft.text],
+        )?;
+    }
+    Ok(())
+}
+
 impl DraftStore for SqliteStore {
     fn load(&self) -> Result<Drafts, StoreError> {
         let connection = self.connection();
-        let mut statement =
-            connection.prepare("SELECT id, title, text FROM drafts ORDER BY position")?;
-        let tabs = statement
-            .query_map([], |row| {
-                Ok(Draft {
-                    id: row.get(0)?,
-                    title: row.get(1)?,
-                    text: row.get(2)?,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
-        let active: Option<i64> = connection
-            .query_row("SELECT value FROM state WHERE key = 'active'", [], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        let active = usize::try_from(active.unwrap_or(0)).unwrap_or(0);
+        let tabs = load_tabs(&connection)?;
+        let active = load_active(&connection)?;
         Ok(Drafts {
             active: active.min(tabs.len().saturating_sub(1)),
             tabs,
+            closed: load_closed(&connection)?,
         })
     }
 
     fn save(&self, drafts: &Drafts) -> Result<(), StoreError> {
         let mut connection = self.connection();
         let transaction = connection.transaction()?;
-        transaction.execute("DELETE FROM drafts", [])?;
-        for (position, draft) in drafts.tabs.iter().enumerate() {
-            transaction.execute(
-                "INSERT INTO drafts (id, position, title, text) VALUES (?1, ?2, ?3, ?4)",
-                params![draft.id, index(position), draft.title, draft.text],
-            )?;
-        }
+        save_tabs(&transaction, &drafts.tabs)?;
+        save_closed(&transaction, &drafts.closed)?;
         transaction.execute(
             "INSERT OR REPLACE INTO state (key, value) VALUES ('active', ?1)",
             params![index(drafts.active)],

@@ -5,16 +5,23 @@ use rusqlite::Connection;
 use crate::error::StoreError;
 
 /// Each step moves the schema up one version; step `n` makes version `n + 1`.
-const STEPS: &[&str] = &["CREATE TABLE drafts (
+const STEPS: &[&str] = &[
+    "CREATE TABLE drafts (
         id INTEGER PRIMARY KEY,
         position INTEGER NOT NULL,
         title TEXT NOT NULL,
         text TEXT NOT NULL
     );
-    CREATE TABLE state (key TEXT PRIMARY KEY, value INTEGER NOT NULL);"];
+    CREATE TABLE state (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
+    "CREATE TABLE closed_tabs (
+        position INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        text TEXT NOT NULL
+    );",
+];
 
 /// The schema version this build writes.
-pub const VERSION: i64 = 1;
+pub const VERSION: i64 = 2;
 
 /// Brings the schema up to [`VERSION`] in one transaction.
 ///
@@ -64,12 +71,35 @@ mod tests {
         migrate(&mut connection).unwrap();
         let tables: i64 = connection
             .query_row(
-                "SELECT count(*) FROM sqlite_schema WHERE name IN ('drafts', 'state')",
+                "SELECT count(*) FROM sqlite_schema WHERE name IN ('drafts', 'state', 'closed_tabs')",
                 [],
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(tables, 2);
+        assert_eq!(tables, 3);
+    }
+
+    #[test]
+    fn upgrades_a_version_one_database_in_place() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(STEPS[0]).unwrap();
+        connection.pragma_update(None, "user_version", 1).unwrap();
+        connection
+            .execute(
+                "INSERT INTO drafts (id, position, title, text) VALUES (4, 0, 'Query 1', 'SELECT 1')",
+                [],
+            )
+            .unwrap();
+        migrate(&mut connection).unwrap();
+        assert_eq!(version(&connection), 2);
+        let kept: String = connection
+            .query_row("SELECT text FROM drafts WHERE id = 4", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(kept, "SELECT 1");
+        let closed: i64 = connection
+            .query_row("SELECT count(*) FROM closed_tabs", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(closed, 0);
     }
 
     #[test]

@@ -171,6 +171,23 @@ fn drafts_come_back_in_a_new_workspace(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn the_closed_tabs_are_kept_through_a_save(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let closed = vec![draft(0, "Query 4", "SELECT 4")];
+    let saved = Drafts {
+        tabs: vec![draft(1, "Query 1", "SELECT 1")],
+        active: 0,
+        closed: closed.clone(),
+    };
+    store.save(&saved).expect("a first save");
+    let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    settle(cx, |_, _| true);
+    assert_eq!(store.load().expect("the drafts load").closed, closed);
+}
+
+#[gpui_kit::test]
 fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
     install(cx);
     let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
@@ -178,6 +195,7 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
         .save(&Drafts {
             tabs: vec![draft(1, "Query 1", "")],
             active: 0,
+            closed: Vec::new(),
         })
         .expect("a first save");
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");

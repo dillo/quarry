@@ -13,13 +13,17 @@ pub struct Draft {
     pub text: String,
 }
 
-/// Every open tab in order, and which one is active.
+/// Every open tab in order, which one is active, and the recently closed
+/// tabs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Drafts {
     /// The tabs, left to right.
     pub tabs: Vec<Draft>,
     /// The index of the active tab in `tabs`.
     pub active: usize,
+    /// Recently closed tabs, newest first. Their ids are not kept: each
+    /// loads with id 0.
+    pub closed: Vec<Draft>,
 }
 
 /// Loads and saves the drafts.
@@ -66,6 +70,7 @@ mod tests {
                 text: "SELECT 1".to_owned(),
             }],
             active: 0,
+            closed: Vec::new(),
         };
         store.save(&drafts)?;
         assert_eq!(store.load()?, Drafts::default());
