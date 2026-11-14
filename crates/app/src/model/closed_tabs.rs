@@ -18,6 +18,15 @@ pub fn remember(closed: &mut Vec<Draft>, draft: Draft) {
     closed.truncate(CLOSED_LIMIT);
 }
 
+/// The first line of `text` that isn't blank, trimmed: what the palette
+/// shows beside a closed tab's title.
+pub fn first_line(text: &str) -> &str {
+    text.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or_default()
+}
+
 /// Removes and returns entry `index`, if there is one.
 pub fn take(closed: &mut Vec<Draft>, index: usize) -> Option<Draft> {
     (index < closed.len()).then(|| closed.remove(index))
@@ -27,7 +36,7 @@ pub fn take(closed: &mut Vec<Draft>, index: usize) -> Option<Draft> {
 mod tests {
     use quarry_store::drafts::Draft;
 
-    use super::{CLOSED_LIMIT, remember, take};
+    use super::{CLOSED_LIMIT, first_line, remember, take};
 
     fn draft(title: &str, text: &str) -> Draft {
         Draft {
@@ -81,6 +90,13 @@ mod tests {
         assert_eq!(closed.len(), CLOSED_LIMIT);
         assert_eq!(closed[0].title, format!("Query {CLOSED_LIMIT}"));
         assert_eq!(closed[CLOSED_LIMIT - 1].title, "Query 1");
+    }
+
+    #[test]
+    fn the_first_line_skips_blank_lines_and_trims() {
+        assert_eq!(first_line("\n  \n  SELECT name\nFROM crew"), "SELECT name");
+        assert_eq!(first_line("one"), "one");
+        assert_eq!(first_line(" \n "), "");
     }
 
     #[test]

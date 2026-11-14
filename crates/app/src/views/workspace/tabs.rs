@@ -1,10 +1,11 @@
-//! The workspace's query tabs: opening, closing and switching.
+//! The workspace's query tabs: opening, closing, reopening and switching.
 
 use gpui_kit::{AppContext, Context, Entity, Window};
+use quarry_store::drafts::Draft;
 
 use super::Workspace;
 use crate::{
-    model::tabs::TabId,
+    model::{closed_tabs, tabs::TabId},
     shell::actions::{CloseTab, NewTab, NextTab, PreviousTab},
     views::query_tab::{QueryTab, QueryTabEvent},
 };
@@ -39,8 +40,11 @@ impl Workspace {
         self.tabs_changed(window, cx);
     }
 
+    /// Closes the active tab and remembers it for reopening, even when it
+    /// is the only one and a fresh tab takes its place.
     pub(super) fn close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
         let closing = self.tabs.active_id();
+        self.remember(closing, cx);
         let opened = self.tabs.close(closing);
         let closed = self.views.remove(&closing);
         // A run that is cut off never emits `RunEnded`, so read the schema for it.
@@ -50,6 +54,37 @@ impl Workspace {
         if let Some(id) = opened {
             self.add_view(id, "", window, cx);
         }
+        self.tabs_changed(window, cx);
+    }
+
+    /// Puts tab `id`'s title and text at the front of the closed tabs.
+    fn remember(&mut self, id: TabId, cx: &mut Context<Self>) {
+        let tab = self.tabs.tabs().iter().find(|tab| tab.id == id);
+        let Some((tab, view)) = tab.zip(self.views.get(&id)) else {
+            return;
+        };
+        let draft = Draft {
+            id,
+            title: tab.title.clone(),
+            text: view.read(cx).text(cx),
+        };
+        closed_tabs::remember(&mut self.closed, draft);
+    }
+
+    /// The recently closed tabs, newest first.
+    pub fn closed_tabs(&self) -> &[Draft] {
+        &self.closed
+    }
+
+    /// Reopens closed tab `index` as a new tab after the active one, with
+    /// its title and text, and saves at once. An index past the list does
+    /// nothing.
+    pub fn reopen_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(draft) = closed_tabs::take(&mut self.closed, index) else {
+            return;
+        };
+        let id = self.tabs.reopen(draft.title);
+        self.add_view(id, &draft.text, window, cx);
         self.tabs_changed(window, cx);
     }
 

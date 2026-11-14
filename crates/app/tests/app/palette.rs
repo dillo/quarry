@@ -72,16 +72,17 @@ fn command_k_again_closes_the_palette(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-fn an_empty_query_lists_open_tabs_then_commands(cx: &mut TestAppContext) {
+fn an_empty_query_lists_tabs_then_tables_then_commands(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-t");
     search(cx, "");
     let groups = groups(&workspace, cx);
     let headings: Vec<&str> = groups.iter().map(|(title, _)| title.as_str()).collect();
-    assert_eq!(headings, ["Open tabs", "Commands"]);
+    assert_eq!(headings, ["Open tabs", "Tables & views", "Commands"]);
     assert_eq!(groups[0].1, ["Query 1", "Query 2"]);
-    assert_eq!(groups[1].1[..3], ["New Tab", "Close Tab", "Copy as TSV"]);
-    assert!(!groups[1].1.contains(&"Quit Quarry".to_owned()));
+    assert!(groups[1].1.contains(&"astronauts".to_owned()));
+    assert_eq!(groups[2].1[..3], ["New Tab", "Close Tab", "Copy as TSV"]);
+    assert!(!groups[2].1.contains(&"Quit Quarry".to_owned()));
     let current = cx.update(|_, cx| {
         let palette = workspace.read(cx).palette();
         palette.map(|p| p.read(cx).groups()[0].items[1].detail.clone())
@@ -147,4 +148,49 @@ fn picking_a_tab_closed_while_the_palette_was_open_does_nothing(cx: &mut TestApp
     cx.simulate_keystrokes("enter");
     assert!(settle(cx, |window, cx| !window.has_active_dialog(cx)));
     cx.update(|_, cx| assert_eq!(workspace.read(cx).tabs().tabs().len(), 1));
+}
+
+#[gpui_kit::test]
+fn tables_and_views_show_their_kind_and_columns(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    search(cx, "mission_crews");
+    let detail = cx.update(|_, cx| {
+        let palette = workspace.read(cx).palette();
+        palette.map(|p| p.read(cx).groups()[0].items[0].detail.clone())
+    });
+    assert!(detail.is_some_and(|d| d.starts_with("view ") && d.ends_with(" columns")));
+}
+
+#[gpui_kit::test]
+fn picking_a_table_opens_the_sidebar_and_focuses_its_row(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-\\");
+    cx.update(|_, cx| assert!(!workspace.read(cx).sidebar_open()));
+    search(cx, "telemetry");
+    cx.simulate_keystrokes("enter");
+    assert!(settle(cx, |window, cx| {
+        let schema = workspace.read(cx).schema().read(cx);
+        schema.focused_table(window) == Some("telemetry")
+    }));
+    cx.update(|_, cx| {
+        let workspace = workspace.read(cx);
+        assert!(workspace.sidebar_open());
+        assert!(workspace.schema().read(cx).expanded().contains("telemetry"));
+    });
+}
+
+#[gpui_kit::test]
+fn a_table_that_is_gone_focuses_nothing(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    cx.update(|window, cx| {
+        workspace.update(cx, |workspace, cx| {
+            workspace.reveal_table("nowhere", window, cx);
+        });
+    });
+    assert!(settle(cx, |_, _| true));
+    cx.update(|window, cx| {
+        let schema = workspace.read(cx).schema().read(cx);
+        assert_eq!(schema.focused_table(window), None);
+        assert!(schema.expanded().is_empty());
+    });
 }

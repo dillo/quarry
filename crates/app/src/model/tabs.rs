@@ -60,9 +60,19 @@ impl TabList {
 
     /// Opens a new "Query N" right after the active tab and activates it.
     pub fn open(&mut self) -> TabId {
+        let title = format!("{TITLE_PREFIX}{}", self.next_number());
+        self.insert(title)
+    }
+
+    /// Opens a closed tab again as a new tab titled `title`, right after the
+    /// active tab, and activates it.
+    pub fn reopen(&mut self, title: String) -> TabId {
+        self.insert(title)
+    }
+
+    fn insert(&mut self, title: String) -> TabId {
         let id = self.next_id;
         self.next_id += 1;
-        let title = format!("{TITLE_PREFIX}{}", self.next_number());
         let at = if self.tabs.is_empty() {
             0
         } else {
@@ -234,6 +244,15 @@ mod tests {
         assert_eq!(list.active(), 2);
         list.previous();
         assert_eq!(list.active(), 1);
+    }
+
+    #[test]
+    fn reopen_inserts_after_the_active_tab_with_its_title_and_a_new_id() {
+        let mut list = three();
+        assert_eq!(list.reopen("Notes".to_owned()), 10);
+        assert_eq!(titles(&list), ["Query 1", "Query 2", "Notes", "Notes"]);
+        assert_eq!(list.active(), 2);
+        assert_eq!(list.active_id(), 10);
     }
 
     #[test]

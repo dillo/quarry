@@ -6,7 +6,9 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
+use gpui_kit::{
+    Entity, TestAppContext, VisualTestContext, component::WindowExt, test::TestWindowExt,
+};
 use quarry::{
     model::{save_order::SaveOrder, statements::Phase},
     views::workspace::{AUTOSAVE, Workspace, save_in_order, tab_element_id},
@@ -17,7 +19,7 @@ use quarry_store::{
     sqlite::SqliteStore,
 };
 
-use super::support::{drawn, install, open_with as open, settle};
+use super::support::{drawn, install, open_with as open, settle, write};
 
 /// A store whose every read and write fails.
 struct Broken;
@@ -340,4 +342,81 @@ fn a_delayed_older_snapshot_is_skipped() {
         None
     );
     assert_eq!(store.load(), Ok(snapshot("newer")));
+}
+
+fn closed_titles(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<String> {
+    cx.update(|_, cx| {
+        let closed = workspace.read(cx).closed_tabs();
+        closed.iter().map(|draft| draft.title.clone()).collect()
+    })
+}
+
+/// Opens the palette, types `query` and picks the first match.
+fn pick(cx: &mut VisualTestContext, query: &str) {
+    cx.simulate_keystrokes("cmd-k");
+    cx.simulate_input(query);
+    cx.simulate_keystrokes("enter");
+    assert!(settle(cx, |window, cx| !window.has_active_dialog(cx)));
+}
+
+#[gpui_kit::test]
+fn a_closed_tab_reopens_from_the_palette_and_saves_at_once(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t cmd-t cmd-{");
+    write(&workspace, cx, "\n  SELECT 42\nFROM astronauts");
+    cx.simulate_keystrokes("cmd-w cmd-{");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 3"]);
+    assert_eq!(closed_titles(&workspace, cx), ["Query 2"]);
+    pick(cx, "query 2");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+    assert_eq!(text(&workspace, cx), "\n  SELECT 42\nFROM astronauts");
+    assert!(closed_titles(&workspace, cx).is_empty());
+    let saved = store.load().expect("the drafts load");
+    assert_eq!((saved.tabs.len(), saved.closed.len()), (3, 0));
+}
+
+#[gpui_kit::test]
+fn the_palette_shows_a_closed_tab_with_its_first_line(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    write(&workspace, cx, "\n  SELECT 42\nFROM astronauts");
+    cx.simulate_keystrokes("cmd-w cmd-k");
+    cx.run_until_parked();
+    let group = cx.update(|_, cx| {
+        let palette = workspace.read(cx).palette().expect("the palette is open");
+        palette.read(cx).groups()[1].clone()
+    });
+    assert_eq!(group.title, "Recently closed");
+    assert_eq!(group.items[0].label, "Query 2");
+    assert_eq!(group.items[0].detail, "SELECT 42");
+}
+
+#[gpui_kit::test]
+fn closing_the_only_tab_remembers_it(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-w");
+    assert_eq!(titles(&workspace, cx), ["Query 1"]);
+    let closed = cx.update(|_, cx| workspace.read(cx).closed_tabs().to_vec());
+    assert_eq!(closed.len(), 1);
+    assert!(closed[0].text.starts_with("-- Welcome"));
+    assert!(settle(cx, |_, _| true));
+    assert_eq!(store.load().expect("the drafts load").closed.len(), 1);
+}
+
+#[gpui_kit::test]
+fn reopening_works_while_drafts_are_not_saved(cx: &mut TestAppContext) {
+    let (workspace, cx) = super::support::open(cx).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t");
+    write(&workspace, cx, "SELECT 7");
+    cx.simulate_keystrokes("cmd-w");
+    pick(cx, "query 2");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2"]);
+    assert_eq!(text(&workspace, cx), "SELECT 7");
 }

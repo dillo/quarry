@@ -175,6 +175,21 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Opens the sidebar if it is closed, then expands table `name`,
+    /// scrolls to it and focuses its row. A table that is gone re-reads the
+    /// schema and focuses nothing.
+    pub fn reveal_table(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let revealed = self
+            .schema
+            .update(cx, |tree, cx| tree.reveal(name, window, cx));
+        if !revealed {
+            self.read_schema(cx);
+            return;
+        }
+        self.sidebar_open = true;
+        cx.notify();
+    }
+
     fn focus_editor(&mut self, _: &FocusEditor, window: &mut Window, cx: &mut Context<Self>) {
         self.editor(cx)
             .update(cx, |state, cx| state.focus(window, cx));

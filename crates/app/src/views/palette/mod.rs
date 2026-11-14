@@ -4,8 +4,10 @@
 //! [`PaletteSourceRegistry`]; adding a source is a new module and one line
 //! in [`PaletteSourceRegistry::standard`]. [`dialog`] draws the palette.
 
+mod closed;
 mod commands;
 pub mod dialog;
+mod tables;
 mod tabs;
 
 use gpui_kit::{App, Context, Window};
@@ -41,10 +43,15 @@ pub struct PaletteSourceRegistry {
 }
 
 impl PaletteSourceRegistry {
-    /// Open tabs, then commands.
+    /// Open tabs, recently closed tabs, tables and views, then commands.
     pub fn standard() -> Self {
         Self {
-            sources: vec![Box::new(tabs::OpenTabs), Box::new(commands::Commands)],
+            sources: vec![
+                Box::new(tabs::OpenTabs),
+                Box::new(closed::RecentlyClosed),
+                Box::new(tables::Tables),
+                Box::new(commands::Commands),
+            ],
         }
     }
 

@@ -38,6 +38,26 @@ pub fn rows(schema: &Schema, expanded: &BTreeSet<String>) -> Vec<TreeRow> {
     rows
 }
 
+/// The position of table `name`'s row among [`rows`], if it is listed.
+pub fn row_of(schema: &Schema, expanded: &BTreeSet<String>, name: &str) -> Option<usize> {
+    rows(schema, expanded)
+        .iter()
+        .position(|row| matches!(row, TreeRow::Table { name: listed, .. } if listed == name))
+}
+
+/// What the palette says about a table: "table 3 columns" or "view 1
+/// column".
+pub fn summary(table: &Table) -> String {
+    let kind = match table.kind {
+        TableKind::Table => "table",
+        TableKind::View => "view",
+    };
+    match table.columns.len() {
+        1 => format!("{kind} 1 column"),
+        n => format!("{kind} {n} columns"),
+    }
+}
+
 /// Expands `name` when collapsed and collapses it when expanded.
 pub fn toggle(expanded: &mut BTreeSet<String>, name: &str) {
     if !expanded.remove(name) {
@@ -83,7 +103,7 @@ mod tests {
 
     use quarry_engine::schema::{ColumnInfo, Schema, Table, TableKind};
 
-    use super::{TreeRow, rows, toggle};
+    use super::{TreeRow, row_of, rows, summary, toggle};
 
     fn column(name: &str, type_name: &str, primary_key: bool) -> ColumnInfo {
         ColumnInfo {
@@ -156,6 +176,24 @@ mod tests {
                 col("who", "any"),
             ]
         );
+    }
+
+    #[test]
+    fn finds_a_table_row_below_expanded_tables() {
+        let expanded = BTreeSet::from(["missions".to_owned()]);
+        assert_eq!(row_of(&schema(), &expanded, "missions"), Some(0));
+        assert_eq!(row_of(&schema(), &expanded, "notes"), Some(3));
+        assert_eq!(row_of(&schema(), &BTreeSet::new(), "roster"), Some(2));
+        assert_eq!(row_of(&schema(), &expanded, "id"), None);
+        assert_eq!(row_of(&schema(), &expanded, "nowhere"), None);
+    }
+
+    #[test]
+    fn summaries_name_the_kind_and_count_columns() {
+        let tables = schema().tables;
+        assert_eq!(summary(&tables[0]), "table 2 columns");
+        assert_eq!(summary(&tables[1]), "table 1 column");
+        assert_eq!(summary(&tables[2]), "view 1 column");
     }
 
     #[test]

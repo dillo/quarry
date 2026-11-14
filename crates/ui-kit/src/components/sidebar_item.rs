@@ -1,12 +1,15 @@
 //! A sidebar row: label, optional trailing text, selectable.
 //!
 //! A row with a click handler is a keyboard stop (see [`keyboard_focusable`]).
+//! Give it a focus handle with [`SidebarItem::track_focus`] to focus it from
+//! code.
 
 use std::rc::Rc;
 
 use gpui_kit::{
-    App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, TestSupportExt, Window, div, px,
+    App, ClickEvent, Div, ElementId, FocusHandle, Hsla, InteractiveElement, IntoElement,
+    ParentElement, RenderOnce, SharedString, Stateful, StatefulInteractiveElement, Styled,
+    TestSupportExt, Window, div, px,
 };
 
 use super::{ClickHandler, keyboard_focusable};
@@ -24,6 +27,7 @@ pub struct SidebarItem {
     trailing: Option<SharedString>,
     selected: bool,
     on_click: Option<ClickHandler>,
+    focus: Option<FocusHandle>,
 }
 
 impl SidebarItem {
@@ -35,6 +39,7 @@ impl SidebarItem {
             trailing: None,
             selected: false,
             on_click: None,
+            focus: None,
         }
     }
 
@@ -59,6 +64,16 @@ impl SidebarItem {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_click = Some(Rc::new(handler));
+        self
+    }
+}
+
+impl SidebarItem {
+    /// Tracks `handle`, so focusing it focuses the row. A row that is a
+    /// keyboard stop needs a handle that is a tab stop.
+    #[must_use]
+    pub fn track_focus(mut self, handle: FocusHandle) -> Self {
+        self.focus = Some(handle);
         self
     }
 }
@@ -113,14 +128,9 @@ impl RenderOnce for SidebarItem {
                 self.trailing
                     .map(|t| div().text_color(colors.get(Role::TextMuted)).child(t)),
             );
-        if let Some(background) = style.background {
-            row = row.bg(background);
-        }
-        if let Some(border) = style.border {
-            row = row.border_color(border);
-        }
-        if let Some(hover) = style.hover {
-            row = row.hover(move |s| s.bg(hover));
+        row = paint(row, style);
+        if let Some(focus) = &self.focus {
+            row = row.track_focus(focus);
         }
         if let Some(handler) = self.on_click {
             row = keyboard_focusable(row, &colors)
@@ -128,6 +138,20 @@ impl RenderOnce for SidebarItem {
         }
         row.test_support()
     }
+}
+
+/// Applies a row's resolved colors.
+fn paint(mut row: Stateful<Div>, style: RowStyle) -> Stateful<Div> {
+    if let Some(background) = style.background {
+        row = row.bg(background);
+    }
+    if let Some(border) = style.border {
+        row = row.border_color(border);
+    }
+    if let Some(hover) = style.hover {
+        row = row.hover(move |s| s.bg(hover));
+    }
+    row
 }
 
 #[cfg(test)]

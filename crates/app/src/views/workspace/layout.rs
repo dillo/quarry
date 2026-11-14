@@ -71,7 +71,6 @@ impl Workspace {
             .flex()
             .flex_col()
             .gap(px(space::SM))
-            .overflow_y_scroll()
             .child(
                 div()
                     .px(px(space::SM))
