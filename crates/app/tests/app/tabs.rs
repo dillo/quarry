@@ -199,7 +199,9 @@ fn the_closed_tabs_are_kept_through_a_save(cx: &mut TestAppContext) {
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-t");
     assert!(settle(cx, |_, _| true));
-    assert_eq!(store.load().expect("the drafts load").closed, closed);
+    let loaded = store.load().expect("the drafts load");
+    assert_eq!(loaded.tabs.len(), 2);
+    assert_eq!(loaded.closed, closed);
 }
 
 #[gpui_kit::test]
