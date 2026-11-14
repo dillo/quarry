@@ -2,14 +2,14 @@
 //! drafts across restarts.
 
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
 use quarry::{
-    model::statements::Phase,
-    views::workspace::{AUTOSAVE, Workspace, tab_element_id},
+    model::{save_order::SaveOrder, statements::Phase},
+    views::workspace::{AUTOSAVE, Workspace, save_in_order, tab_element_id},
 };
 use quarry_store::{
     drafts::{Draft, DraftStore, Drafts},
@@ -316,4 +316,28 @@ fn closing_the_window_saves_the_last_edits(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let loaded = store.load().expect("the drafts load");
     assert!(loaded.tabs[0].text.starts_with("SELECT 9"));
+}
+
+#[test]
+fn a_delayed_older_snapshot_is_skipped() {
+    let store = SqliteStore::in_memory().expect("an in-memory store");
+    let saves = Mutex::new(SaveOrder::default());
+    let (older, newer) = {
+        let mut order = saves.lock().expect("an unpoisoned lock");
+        (order.issue(), order.issue())
+    };
+    let snapshot = |text: &str| Drafts {
+        tabs: vec![draft(1, "Query 1", text)],
+        active: 0,
+        closed: Vec::new(),
+    };
+    assert_eq!(
+        save_in_order(&store, &saves, newer, &snapshot("newer")),
+        Some(Ok(()))
+    );
+    assert_eq!(
+        save_in_order(&store, &saves, older, &snapshot("older")),
+        None
+    );
+    assert_eq!(store.load(), Ok(snapshot("newer")));
 }

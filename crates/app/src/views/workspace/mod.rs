@@ -10,7 +10,11 @@ mod runs;
 mod tab_strip;
 mod tabs;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use gpui_kit::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, Window,
@@ -21,12 +25,13 @@ use quarry_store::drafts::{Draft, DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
 pub use self::{
-    drafts::{AUTOSAVE, SavedTabs},
+    drafts::{AUTOSAVE, SavedTabs, save_in_order},
     tab_strip::tab_element_id,
 };
 use super::{editor, query_tab::QueryTab, schema::SchemaTree};
 use crate::{
     model::{
+        save_order::SaveOrder,
         statements::RunOutput,
         tabs::{Tab, TabId, TabList},
     },
@@ -52,7 +57,7 @@ pub struct Workspace {
     open_problem: Option<String>,
     save_problem: Option<String>,
     autosave: Option<Task<()>>,
-    saving: Option<Task<()>>,
+    saves: Arc<Mutex<SaveOrder>>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
     focus: FocusHandle,
@@ -82,7 +87,7 @@ impl Workspace {
             open_problem: problem,
             save_problem: None,
             autosave: None,
-            saving: None,
+            saves: Arc::default(),
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
             focus: cx.focus_handle(),

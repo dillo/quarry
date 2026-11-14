@@ -1,10 +1,13 @@
 //! Saving the tabs' drafts: a second after the last edit, at once when the
 //! tabs change, when the window closes and when Quarry quits.
 //!
-//! Writes run on the background executor, one after another, so a later
-//! snapshot never lands before an earlier one.
+//! Every snapshot gets a generation when it is taken, and every write holds
+//! one lock, so an older snapshot never lands after a newer one.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex, PoisonError},
+    time::Duration,
+};
 
 use gpui_kit::{App, AppContext, Context, WindowId};
 use quarry_store::{
@@ -13,6 +16,7 @@ use quarry_store::{
 };
 
 use super::Workspace;
+use crate::model::save_order::SaveOrder;
 
 /// How long after the last edit the drafts are saved.
 pub const AUTOSAVE: Duration = Duration::from_secs(1);
@@ -91,30 +95,57 @@ impl Workspace {
         }));
     }
 
-    /// Saves a snapshot now, after any save still being written.
-    pub(super) fn save_now(&mut self, cx: &mut Context<Self>) {
-        self.autosave = None;
-        let drafts = self.snapshot(cx);
-        let store = Arc::clone(&self.store);
-        let previous = self.saving.take();
-        self.saving = Some(cx.spawn(async move |this, cx| {
-            if let Some(previous) = previous {
-                previous.await;
-            }
-            let saved = cx
-                .background_spawn(async move { store.save(&drafts) })
-                .await;
-            let _ = this.update(cx, |workspace, cx| workspace.saved(saved, cx));
-        }));
+    /// A snapshot and its generation.
+    fn numbered_snapshot(&self, cx: &App) -> (u64, Drafts) {
+        let generation = lock(&self.saves).issue();
+        (generation, self.snapshot(cx))
     }
 
-    /// Saves synchronously, for when Quarry is quitting.
+    /// Saves a snapshot now, on the background executor.
+    pub(super) fn save_now(&mut self, cx: &mut Context<Self>) {
+        self.autosave = None;
+        let (generation, drafts) = self.numbered_snapshot(cx);
+        let store = Arc::clone(&self.store);
+        let saves = Arc::clone(&self.saves);
+        cx.spawn(async move |this, cx| {
+            let outcome = cx
+                .background_spawn(
+                    async move { save_in_order(&*store, &saves, generation, &drafts) },
+                )
+                .await;
+            if let Some(outcome) = outcome {
+                let _ = this.update(cx, |workspace, cx| workspace.saved(outcome, cx));
+            }
+        })
+        .detach();
+    }
+
+    /// Saves synchronously, for when the window closes or Quarry quits.
     pub(super) fn save_before_quit(&self, cx: &App) {
-        let _ = self.store.save(&self.snapshot(cx));
+        let (generation, drafts) = self.numbered_snapshot(cx);
+        let _ = save_in_order(&*self.store, &self.saves, generation, &drafts);
     }
 
     fn saved(&mut self, saved: Result<(), StoreError>, cx: &mut Context<Self>) {
         self.save_problem = saved.err().map(|error| error.to_string());
         cx.notify();
     }
+}
+
+/// Writes `drafts`, snapshot `generation`, to `store` while holding the save
+/// lock `saves`. Returns `None`, writing nothing, when a newer snapshot has
+/// already been written.
+pub fn save_in_order(
+    store: &dyn DraftStore,
+    saves: &Mutex<SaveOrder>,
+    generation: u64,
+    drafts: &Drafts,
+) -> Option<Result<(), StoreError>> {
+    let mut order = lock(saves);
+    order.commit(generation).then(|| store.save(drafts))
+}
+
+/// The save lock; a panic while it was held leaves nothing to undo.
+fn lock(saves: &Mutex<SaveOrder>) -> std::sync::MutexGuard<'_, SaveOrder> {
+    saves.lock().unwrap_or_else(PoisonError::into_inner)
 }
