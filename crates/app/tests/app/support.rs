@@ -51,7 +51,7 @@ pub fn open_with(
         let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));
     });
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     Ok((workspace, cx))
 }
 
@@ -66,27 +66,30 @@ pub fn write(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, sql: &st
     });
 }
 
-/// Pumps the executor until `done` holds or [`PATIENCE`] runs out; the
-/// session thread delivers events in real time.
-pub fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut Window, &mut App) -> bool) {
+/// Pumps the executor until `done` holds or [`PATIENCE`] runs out, and
+/// says whether `done` held; the session thread delivers events in real
+/// time.
+#[must_use]
+pub fn settle(cx: &mut VisualTestContext, done: impl Fn(&mut Window, &mut App) -> bool) -> bool {
     let deadline = std::time::Instant::now() + PATIENCE;
     while std::time::Instant::now() < deadline {
         cx.executor().advance_clock(POLL);
         cx.run_until_parked();
         if cx.update(|window, cx| done(window, cx)) {
-            return;
+            return true;
         }
         std::thread::sleep(Duration::from_millis(5));
     }
+    false
 }
 
 /// Presses `keys` and waits for the active tab's run to end.
 pub fn run_with(workspace: &Entity<Workspace>, cx: &mut VisualTestContext, keys: &str) {
     cx.simulate_keystrokes(keys);
-    settle(cx, |_, cx| {
+    assert!(settle(cx, |_, cx| {
         let output = workspace.read(cx).run_output(cx);
         !output.is_running() && output.phase() != &Phase::Idle
-    });
+    }));
 }
 
 /// Runs the editor's statement with ⌘↵ and waits for the run to end.

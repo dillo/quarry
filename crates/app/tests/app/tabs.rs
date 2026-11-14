@@ -89,6 +89,19 @@ fn closing_the_only_tab_opens_a_fresh_one(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn command_w_activates_the_right_hand_neighbour(cx: &mut TestAppContext) {
+    install(cx);
+    let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
+    let (workspace, cx) = open(cx, store).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-t cmd-t cmd-{");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 2", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+    cx.simulate_keystrokes("cmd-w");
+    assert_eq!(titles(&workspace, cx), ["Query 1", "Query 3"]);
+    assert_eq!(active(&workspace, cx), 1);
+}
+
+#[gpui_kit::test]
 fn next_and_previous_switch_tabs_and_wrap(cx: &mut TestAppContext) {
     install(cx);
     let store = Arc::new(SqliteStore::in_memory().expect("an in-memory store"));
@@ -124,9 +137,9 @@ fn each_tab_keeps_its_own_results(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-enter");
     let finished = |cx: &mut VisualTestContext| {
-        settle(cx, |_, cx| {
+        assert!(settle(cx, |_, cx| {
             workspace.read(cx).run_output(cx).phase() == &Phase::Finished
-        });
+        }));
     };
     finished(cx);
     cx.simulate_keystrokes("cmd-t");
@@ -153,7 +166,7 @@ fn drafts_come_back_in_a_new_workspace(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("cmd-t");
     cx.simulate_input("SELECT 42");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     let saved = store.load().expect("the drafts load");
     assert_eq!(
         (saved.active, saved.tabs[1].text.as_str()),
@@ -183,7 +196,7 @@ fn the_closed_tabs_are_kept_through_a_save(cx: &mut TestAppContext) {
     store.save(&saved).expect("a first save");
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-t");
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert_eq!(store.load().expect("the drafts load").closed, closed);
 }
 
@@ -246,9 +259,9 @@ fn a_store_that_failed_to_load_is_never_saved_over(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_input("SELECT 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     cx.simulate_keystrokes("cmd-t");
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(!saved.load(Ordering::SeqCst));
     cx.update(|_, cx| {
         assert_eq!(
@@ -285,11 +298,11 @@ fn the_warning_clears_after_a_later_save_succeeds(cx: &mut TestAppContext) {
     let (_workspace, cx) = open(cx, store).expect("the sample database opens");
     cx.simulate_input("SELECT 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(drawn(cx, "drafts-warning"));
     cx.simulate_input(" + 1");
     cx.executor().advance_clock(AUTOSAVE);
-    settle(cx, |_, _| true);
+    assert!(settle(cx, |_, _| true));
     assert!(!drawn(cx, "drafts-warning"));
 }
 
