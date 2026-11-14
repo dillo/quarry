@@ -1,5 +1,5 @@
-//! Start-up: the main window opens on the sample database, and every command
-//! has a key binding and a menu item.
+//! Start-up: the main window opens on the sample database, the menus come
+//! from the command table, and commands have key bindings.
 
 use std::{cell::Cell, path::Path, rc::Rc};
 
@@ -35,28 +35,42 @@ fn the_window_has_a_transparent_titlebar_and_the_default_size(cx: &mut TestAppCo
 }
 
 #[test]
-fn every_menu_command_has_a_key_binding() {
+fn every_command_but_the_other_copy_formats_has_a_key_binding() {
     let bound: Vec<&str> = actions::key_bindings()
         .iter()
         .map(|binding| binding.action().name())
         .collect();
+    let unbound = ["quarry::CopyCsv", "quarry::CopyJson"];
+    let commands = actions::commands();
+    assert_eq!(commands.len(), 17);
+    for command in commands {
+        let name = (command.action)().name();
+        assert!(
+            bound.contains(&name) != unbound.contains(&name),
+            "{name} has no key binding"
+        );
+    }
+}
+
+#[test]
+fn the_menus_are_the_command_table_in_order() {
     let menus = actions::menus();
-    let commands: Vec<&str> = menus
+    let names: Vec<&str> = menus.iter().map(|menu| menu.name.as_ref()).collect();
+    assert_eq!(names, ["Quarry", "File", "Edit", "Query", "View"]);
+    let items: Vec<String> = menus
         .iter()
         .flat_map(|menu| &menu.items)
         .filter_map(|item| match item {
-            MenuItem::Action { action, .. } => Some(action.name()),
+            MenuItem::Action { name, .. } => Some(name.to_string()),
             _ => None,
         })
         .collect();
-    assert_eq!(commands.len(), 16);
-    let unbound = ["quarry::CopyCsv", "quarry::CopyJson"];
-    for command in commands {
-        assert!(
-            bound.contains(&command) != unbound.contains(&command),
-            "{command} has no key binding"
-        );
-    }
+    let labels: Vec<&str> = actions::commands()
+        .iter()
+        .map(|command| command.label)
+        .collect();
+    assert_eq!(items, labels);
+    assert_eq!(items[3..6], ["Copy as TSV", "Copy as CSV", "Copy as JSON"]);
 }
 
 #[test]

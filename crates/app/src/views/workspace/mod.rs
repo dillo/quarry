@@ -7,19 +7,21 @@
 mod copy;
 mod drafts;
 mod layout;
+mod palette;
 mod runs;
 mod tab_strip;
 mod tabs;
 
 use std::{
     collections::BTreeMap,
+    rc::Rc,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
 use gpui_kit::{
-    App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, Window,
-    component::input::EditorState,
+    App, AppContext, Context, Entity, FocusHandle, Focusable, Subscription, Task, WeakEntity,
+    Window, component::input::EditorState,
 };
 use quarry_engine::session::Session;
 use quarry_store::drafts::{Draft, DraftStore, Drafts};
@@ -30,7 +32,12 @@ pub use self::{
     drafts::{AUTOSAVE, SavedTabs, save_in_order},
     tab_strip::tab_element_id,
 };
-use super::{editor, query_tab::QueryTab, schema::SchemaTree};
+use super::{
+    editor,
+    palette::{PaletteSourceRegistry, dialog::Palette},
+    query_tab::QueryTab,
+    schema::SchemaTree,
+};
 use crate::{
     model::{
         save_order::SaveOrder,
@@ -67,6 +74,8 @@ pub struct Workspace {
     schema_read: Option<Task<()>>,
     note: Option<String>,
     note_timer: Option<Task<()>>,
+    palette: Rc<PaletteSourceRegistry>,
+    shown_palette: WeakEntity<Palette>,
     _quit: Subscription,
 }
 
@@ -99,6 +108,8 @@ impl Workspace {
             schema_read: None,
             note: None,
             note_timer: None,
+            palette: Rc::new(PaletteSourceRegistry::standard()),
+            shown_palette: WeakEntity::new_invalid(),
             _quit: cx.on_app_quit(|workspace, cx| {
                 workspace.save_before_quit(cx);
                 async {}

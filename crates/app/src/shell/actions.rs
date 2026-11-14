@@ -1,9 +1,10 @@
 //! Every command, its key binding and its menu.
 //!
 //! Adding a command means declaring it in `actions!`, adding one row to
-//! [`key_bindings`] and one menu item to [`menus`].
+//! [`commands`], and a row to [`key_bindings`] if it has a key. The command
+//! table makes the menus and the palette's Commands.
 
-use gpui_kit::{App, KeyBinding, Menu, MenuItem, actions};
+use gpui_kit::{Action, App, KeyBinding, Menu, MenuItem, actions};
 
 actions!(
     quarry,
@@ -38,6 +39,8 @@ actions!(
         CopyCsv,
         /// Copies the grid's selection, or the whole result, as JSON.
         CopyJson,
+        /// Opens the ⌘K palette, or closes it when it is open.
+        OpenPalette,
         /// Quits Quarry.
         Quit,
     ]
@@ -49,6 +52,9 @@ pub const WORKSPACE: &str = "Workspace";
 /// The editor's own key context, inside the workspace. Bindings here win
 /// over the editor's built-in ⌘↵ (newline) and ⌘. (code actions).
 pub const WORKSPACE_EDITOR: &str = "Workspace > Input";
+
+/// The palette's key context, where ⌘K closes it again.
+pub const PALETTE: &str = "Palette";
 
 /// The results grid's key context. ⌘C there copies as TSV; the editor
 /// keeps its own ⌘C.
@@ -72,38 +78,80 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-2", FocusEditor, None),
         KeyBinding::new("cmd-shift-t", CycleTheme, None),
         KeyBinding::new("cmd-c", CopyTsv, Some(GRID)),
+        KeyBinding::new("cmd-k", OpenPalette, Some(WORKSPACE)),
+        KeyBinding::new("cmd-k", OpenPalette, Some(WORKSPACE_EDITOR)),
+        KeyBinding::new("cmd-k", OpenPalette, Some(PALETTE)),
         KeyBinding::new("cmd-q", Quit, None),
     ]
 }
 
-/// The macOS menu bar.
-pub fn menus() -> Vec<Menu> {
+/// The app menu, which holds Quit; the palette leaves it out.
+pub const APP_MENU: &str = "Quarry";
+
+/// One command: its menu item and palette label, its action, and its menu.
+pub struct Command {
+    /// The menu item's text, and the palette's.
+    pub label: &'static str,
+    /// Makes the action the command dispatches.
+    pub action: fn() -> Box<dyn Action>,
+    /// The menu the command is in.
+    pub menu: &'static str,
+}
+
+/// Every command, menu by menu, in menu order.
+pub fn commands() -> Vec<Command> {
+    let command = |label, action, menu| Command {
+        label,
+        action,
+        menu,
+    };
     vec![
-        Menu::new("Quarry").items([MenuItem::action("Quit Quarry", Quit)]),
-        Menu::new("File").items([
-            MenuItem::action("New Tab", NewTab),
-            MenuItem::action("Close Tab", CloseTab),
-        ]),
-        Menu::new("Edit").items([
-            MenuItem::action("Copy as TSV", CopyTsv),
-            MenuItem::action("Copy as CSV", CopyCsv),
-            MenuItem::action("Copy as JSON", CopyJson),
-        ]),
-        Menu::new("Query").items([
-            MenuItem::action("Run Statement", RunStatement),
-            MenuItem::action("Run All", RunAll),
-            MenuItem::action("Explain", Explain),
-            MenuItem::action("Cancel", CancelRun),
-        ]),
-        Menu::new("View").items([
-            MenuItem::action("Next Tab", NextTab),
-            MenuItem::action("Previous Tab", PreviousTab),
-            MenuItem::action("Toggle Sidebar", ToggleSidebar),
-            MenuItem::action("Focus Sidebar", FocusSidebar),
-            MenuItem::action("Focus Editor", FocusEditor),
-            MenuItem::action("Cycle Theme", CycleTheme),
-        ]),
+        command("Quit Quarry", || Box::new(Quit), APP_MENU),
+        command("New Tab", || Box::new(NewTab), "File"),
+        command("Close Tab", || Box::new(CloseTab), "File"),
+        command("Copy as TSV", || Box::new(CopyTsv), "Edit"),
+        command("Copy as CSV", || Box::new(CopyCsv), "Edit"),
+        command("Copy as JSON", || Box::new(CopyJson), "Edit"),
+        command("Run Statement", || Box::new(RunStatement), "Query"),
+        command("Run All", || Box::new(RunAll), "Query"),
+        command("Explain", || Box::new(Explain), "Query"),
+        command("Cancel", || Box::new(CancelRun), "Query"),
+        command("Open Palette", || Box::new(OpenPalette), "View"),
+        command("Next Tab", || Box::new(NextTab), "View"),
+        command("Previous Tab", || Box::new(PreviousTab), "View"),
+        command("Toggle Sidebar", || Box::new(ToggleSidebar), "View"),
+        command("Focus Sidebar", || Box::new(FocusSidebar), "View"),
+        command("Focus Editor", || Box::new(FocusEditor), "View"),
+        command("Cycle Theme", || Box::new(CycleTheme), "View"),
     ]
+}
+
+/// The macOS menu bar, made from [`commands`].
+pub fn menus() -> Vec<Menu> {
+    let commands = commands();
+    let mut names: Vec<&str> = Vec::new();
+    for command in &commands {
+        if !names.contains(&command.menu) {
+            names.push(command.menu);
+        }
+    }
+    names
+        .into_iter()
+        .map(|name| {
+            let items = commands.iter().filter(|command| command.menu == name);
+            Menu::new(name).items(items.map(menu_item))
+        })
+        .collect()
+}
+
+fn menu_item(command: &Command) -> MenuItem {
+    MenuItem::Action {
+        name: command.label.into(),
+        action: (command.action)(),
+        os_action: None,
+        checked: false,
+        disabled: false,
+    }
 }
 
 /// Registers the bindings, the menu bar and the app-wide actions.

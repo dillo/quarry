@@ -2,7 +2,10 @@
 
 use std::{sync::Arc, time::Duration};
 
-use gpui_kit::{App, Entity, TestAppContext, VisualTestContext, Window, test::TestWindowExt};
+use gpui_kit::{
+    App, AppContext, Entity, TestAppContext, VisualTestContext, Window, base::Root,
+    test::TestWindowExt,
+};
 use quarry::{
     model::statements::Phase,
     sample,
@@ -35,7 +38,8 @@ pub fn open(
 }
 
 /// A workspace on a fresh sample database saving to `store`, with its
-/// editor focused. Call [`install`] first.
+/// editor focused. Like the real window, it sits in gpui-kit's `Root`,
+/// which draws dialogs. Call [`install`] first.
 pub fn open_with(
     cx: &mut TestAppContext,
     store: Arc<dyn DraftStore>,
@@ -45,8 +49,17 @@ pub fn open_with(
         store,
         problem: None,
     };
-    let (workspace, cx) =
-        cx.add_window_view(|window, cx| Workspace::new(session, sample::NAME, saved, window, cx));
+    let mut opened = None;
+    let handle = cx.add_window(|window, cx| {
+        let workspace = cx.new(|cx| Workspace::new(session, sample::NAME, saved, window, cx));
+        opened = Some(workspace.clone());
+        Root::new(workspace, window, cx)
+    });
+    let cx = VisualTestContext::from_window(handle.into(), cx).into_mut();
+    let workspace = opened.ok_or_else(|| EngineError::Open {
+        target: "the test window".to_owned(),
+        message: "it built no workspace".to_owned(),
+    })?;
     cx.update(|window, cx| {
         let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));

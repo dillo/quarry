@@ -47,6 +47,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::copy_tsv))
             .on_action(cx.listener(Self::copy_csv))
             .on_action(cx.listener(Self::copy_json))
+            .on_action(cx.listener(Self::open_palette))
             .size_full()
             .flex()
             .bg(window_background(&colors))
