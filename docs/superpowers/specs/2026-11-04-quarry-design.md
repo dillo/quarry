@@ -165,6 +165,7 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
 **Command palette (⌘K)**
 - Jump to any track, challenge, table, tab, saved query, connection or setting.
 - It's for navigating only and never suggests SQL.
+- Phase 1E built it with open tabs, recently closed tabs (the last 10, kept across restarts), tables and views, and commands; later phases add the other sources. ⌘C in the grid copies as TSV, and Edit → Copy as … copies as TSV, CSV or JSON (ADR 0011).
 
 ### 4.3 Feedback on Check answer
 
