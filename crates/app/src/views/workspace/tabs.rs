@@ -22,6 +22,7 @@ impl Workspace {
         cx.subscribe(&view, |workspace, _, event, cx| match event {
             QueryTabEvent::RunEnded => workspace.read_schema(cx),
             QueryTabEvent::Edited => workspace.schedule_save(cx),
+            QueryTabEvent::Copied(note) => workspace.show_note(note.clone(), cx),
         })
         .detach();
         self.views.insert(id, view);

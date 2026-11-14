@@ -49,9 +49,13 @@ fn every_menu_command_has_a_key_binding() {
             _ => None,
         })
         .collect();
-    assert_eq!(commands.len(), 13);
+    assert_eq!(commands.len(), 16);
+    let unbound = ["quarry::CopyCsv", "quarry::CopyJson"];
     for command in commands {
-        assert!(bound.contains(&command), "{command} has no key binding");
+        assert!(
+            bound.contains(&command) != unbound.contains(&command),
+            "{command} has no key binding"
+        );
     }
 }
 

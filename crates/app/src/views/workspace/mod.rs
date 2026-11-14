@@ -4,6 +4,7 @@
 //! [`tabs`] opens, closes and switches tabs, [`drafts`] saves them,
 //! [`runs`] submits runs and reads the schema, and [`layout`] draws it.
 
+mod copy;
 mod drafts;
 mod layout;
 mod runs;
@@ -25,6 +26,7 @@ use quarry_store::drafts::{Draft, DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
 pub use self::{
+    copy::NOTE_TIME,
     drafts::{AUTOSAVE, SavedTabs, save_in_order},
     tab_strip::tab_element_id,
 };
@@ -63,6 +65,8 @@ pub struct Workspace {
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
     schema_read: Option<Task<()>>,
+    note: Option<String>,
+    note_timer: Option<Task<()>>,
     _quit: Subscription,
 }
 
@@ -93,6 +97,8 @@ impl Workspace {
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             schema_read: None,
+            note: None,
+            note_timer: None,
             _quit: cx.on_app_quit(|workspace, cx| {
                 workspace.save_before_quit(cx);
                 async {}

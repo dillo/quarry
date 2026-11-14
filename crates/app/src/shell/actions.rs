@@ -32,6 +32,12 @@ actions!(
         FocusEditor,
         /// Cycles the theme: Dark, Light, System.
         CycleTheme,
+        /// Copies the grid's selection, or the whole result, as TSV.
+        CopyTsv,
+        /// Copies the grid's selection, or the whole result, as CSV.
+        CopyCsv,
+        /// Copies the grid's selection, or the whole result, as JSON.
+        CopyJson,
         /// Quits Quarry.
         Quit,
     ]
@@ -43,6 +49,10 @@ pub const WORKSPACE: &str = "Workspace";
 /// The editor's own key context, inside the workspace. Bindings here win
 /// over the editor's built-in ⌘↵ (newline) and ⌘. (code actions).
 pub const WORKSPACE_EDITOR: &str = "Workspace > Input";
+
+/// The results grid's key context. ⌘C there copies as TSV; the editor
+/// keeps its own ⌘C.
+pub const GRID: &str = "DataTable";
 
 /// Every key binding Quarry adds.
 pub fn key_bindings() -> Vec<KeyBinding> {
@@ -61,6 +71,7 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-1", FocusSidebar, None),
         KeyBinding::new("cmd-2", FocusEditor, None),
         KeyBinding::new("cmd-shift-t", CycleTheme, None),
+        KeyBinding::new("cmd-c", CopyTsv, Some(GRID)),
         KeyBinding::new("cmd-q", Quit, None),
     ]
 }
@@ -72,6 +83,11 @@ pub fn menus() -> Vec<Menu> {
         Menu::new("File").items([
             MenuItem::action("New Tab", NewTab),
             MenuItem::action("Close Tab", CloseTab),
+        ]),
+        Menu::new("Edit").items([
+            MenuItem::action("Copy as TSV", CopyTsv),
+            MenuItem::action("Copy as CSV", CopyCsv),
+            MenuItem::action("Copy as JSON", CopyJson),
         ]),
         Menu::new("Query").items([
             MenuItem::action("Run Statement", RunStatement),
