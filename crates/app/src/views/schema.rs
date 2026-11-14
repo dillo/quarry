@@ -1,11 +1,18 @@
 //! The sidebar's schema tree: tables and views, expandable to their columns.
+//!
+//! The tree scrolls on its own, and each table's row has a focus handle, so
+//! the palette can reveal a table: expand it, scroll to it and focus it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use gpui_kit::{
-    AnyElement, Context, IntoElement, ParentElement, Render, SharedString, Styled, Window, div, px,
+    AnyElement, Context, FocusHandle, InteractiveElement, IntoElement, ParentElement, Render,
+    ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
-use quarry_engine::{error::EngineError, schema::Schema};
+use quarry_engine::{
+    error::EngineError,
+    schema::{Schema, Table},
+};
 use quarry_ui_kit::{
     Aurora, Role,
     components::sidebar_item::SidebarItem,
@@ -18,6 +25,8 @@ use crate::model::schema_tree::{self, TreeRow};
 pub struct SchemaTree {
     schema: Result<Schema, EngineError>,
     expanded: BTreeSet<String>,
+    scroll: ScrollHandle,
+    focus: BTreeMap<String, FocusHandle>,
 }
 
 impl Default for SchemaTree {
@@ -25,6 +34,8 @@ impl Default for SchemaTree {
         Self {
             schema: Ok(Schema::default()),
             expanded: BTreeSet::new(),
+            scroll: ScrollHandle::new(),
+            focus: BTreeMap::new(),
         }
     }
 }
@@ -41,18 +52,61 @@ impl SchemaTree {
         &self.expanded
     }
 
+    /// The tables and views, in sidebar order; none when the schema could
+    /// not be read.
+    pub fn tables(&self) -> &[Table] {
+        self.schema.as_ref().map_or(&[], |schema| &schema.tables)
+    }
+
+    /// Expands table `name`, scrolls its row into view and focuses it.
+    /// Returns false, changing nothing, when there is no such table.
+    pub fn reveal(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Ok(schema) = &self.schema else {
+            return false;
+        };
+        let mut expanded = self.expanded.clone();
+        expanded.insert(name.to_owned());
+        let Some(row) = schema_tree::row_of(schema, &expanded, name) else {
+            return false;
+        };
+        self.expanded = expanded;
+        self.scroll.scroll_to_item(row);
+        window.focus(&self.focus_handle(name, cx), cx);
+        cx.notify();
+        true
+    }
+
+    /// The table whose row has focus, if one does.
+    pub fn focused_table(&self, window: &Window) -> Option<&str> {
+        self.focus
+            .iter()
+            .find(|(_, handle)| handle.is_focused(window))
+            .map(|(name, _)| name.as_str())
+    }
+
+    /// Table `name`'s focus handle, made the first time it is asked for.
+    fn focus_handle(&mut self, name: &str, cx: &mut Context<Self>) -> FocusHandle {
+        self.focus
+            .entry(name.to_owned())
+            .or_insert_with(|| cx.focus_handle().tab_index(0).tab_stop(true))
+            .clone()
+    }
+
     fn toggle(&mut self, name: &str, cx: &mut Context<Self>) {
         schema_tree::toggle(&mut self.expanded, name);
         cx.notify();
     }
 
-    fn row(row: TreeRow, cx: &mut Context<Self>) -> AnyElement {
+    fn row(&mut self, row: TreeRow, cx: &mut Context<Self>) -> AnyElement {
         match row {
             TreeRow::Table {
                 name,
                 detail,
                 expanded,
-            } => table_row(name, detail, expanded, cx),
+            } => {
+                let focus = self.focus_handle(&name, cx);
+                table_row(name, detail, expanded, focus, cx)
+            }
             TreeRow::Column { name, detail } => column_row(name, detail, cx),
         }
     }
@@ -67,12 +121,14 @@ fn table_row(
     name: String,
     detail: String,
     expanded: bool,
+    focus: FocusHandle,
     cx: &mut Context<SchemaTree>,
 ) -> AnyElement {
     let label = SharedString::from(name.clone());
     SidebarItem::new(table_row_id(&name), label)
         .trailing(detail)
         .selected(expanded)
+        .track_focus(focus)
         .on_click(cx.listener(move |tree, _, _, cx| tree.toggle(&name, cx)))
         .into_any_element()
 }
@@ -95,18 +151,25 @@ fn column_row(name: String, detail: String, cx: &Context<SchemaTree>) -> AnyElem
 impl Render for SchemaTree {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = Aurora::colors(cx);
-        let list = div().flex().flex_col().gap(px(1.));
-        match &self.schema {
-            Err(error) => list
-                .text_size(px(text::SMALL))
-                .text_color(colors.get(Role::Danger))
-                .child(format!("Cannot read the schema: {error}")),
-            Ok(schema) => {
-                let rows = schema_tree::rows(schema, &self.expanded);
-                let children: Vec<AnyElement> =
-                    rows.into_iter().map(|row| Self::row(row, cx)).collect();
-                list.children(children)
+        let list = div()
+            .id("schema")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll)
+            .flex()
+            .flex_col()
+            .gap(px(1.));
+        let rows = match &self.schema {
+            Err(error) => {
+                return list
+                    .text_size(px(text::SMALL))
+                    .text_color(colors.get(Role::Danger))
+                    .child(format!("Cannot read the schema: {error}"));
             }
-        }
+            Ok(schema) => schema_tree::rows(schema, &self.expanded),
+        };
+        let children: Vec<AnyElement> = rows.into_iter().map(|row| self.row(row, cx)).collect();
+        list.children(children)
     }
 }

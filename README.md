@@ -2,7 +2,7 @@
 
 A native macOS SQL client for learning SQL by hand and for real work, built in Rust with GPUI.
 
-> **Status:** Phase 1D. You can write and run SQL against a built-in sample database in query tabs that survive restarts, run whole scripts, and explain a statement's plan. See the [design spec](docs/superpowers/specs/2026-11-04-quarry-design.md).
+> **Status:** Phase 1 complete. You can write and run SQL against a built-in sample database in query tabs that survive restarts, run whole scripts, explain a statement's plan, copy results as TSV, CSV or JSON, and jump to tabs, closed tabs, tables and commands with ⌘K. See the [design spec](docs/superpowers/specs/2026-11-04-quarry-design.md).
 
 - Built-in SQLite playground with story-driven SQL challenge tracks
 - PostgreSQL and MySQL connections for everyday work

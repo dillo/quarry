@@ -5,6 +5,7 @@
 
 pub mod driver;
 pub mod error;
+pub mod export;
 pub mod plan;
 pub mod registry;
 pub mod result;
