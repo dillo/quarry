@@ -5,6 +5,7 @@ use std::fmt;
 use crate::{
     embedded::{RawTrack, TRACKS},
     error::ContentError,
+    kind::KindRegistry,
     track::{self, Challenge, Track},
 };
 
@@ -59,10 +60,11 @@ impl Catalog {
     /// Loads every track in `raw`. A track with bad content is left out,
     /// and its error is returned beside the catalog.
     pub fn load(raw: &[RawTrack]) -> (Self, Vec<ContentError>) {
+        let kinds = KindRegistry::standard();
         let mut tracks = Vec::new();
         let mut errors = Vec::new();
         for raw in raw {
-            match track::parse(raw) {
+            match track::parse(raw).and_then(|track| known_kinds(track, &kinds)) {
                 Ok(track) => tracks.push(track),
                 Err(error) => errors.push(error),
             }
@@ -97,18 +99,44 @@ impl Catalog {
     }
 }
 
+/// `track`, if every challenge's kind is in `kinds`.
+fn known_kinds(track: Track, kinds: &KindRegistry) -> Result<Track, ContentError> {
+    let unknown = track
+        .challenges
+        .iter()
+        .find(|challenge| kinds.get(&challenge.kind).is_none());
+    match unknown {
+        Some(challenge) => Err(ContentError::Field {
+            file: format!("{}/challenges.toml", track.slug),
+            challenge: challenge.id.clone(),
+            field: "kind",
+            problem: "names no kind Quarry knows",
+        }),
+        None => Ok(track),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Catalog, ChallengeId};
     use crate::{embedded::RawTrack, error::ContentError};
 
     fn raw(slug: &'static str, order: u32, challenge: &'static str) -> RawTrack {
+        raw_of_kind(slug, order, challenge, "query")
+    }
+
+    fn raw_of_kind(
+        slug: &'static str,
+        order: u32,
+        challenge: &'static str,
+        kind: &str,
+    ) -> RawTrack {
         let track: &'static str = Box::leak(
             format!("title = \"{slug}\"\nemoji = \"E\"\nintro = \"I\"\nconcepts = []\ndifficulty = \"D\"\norder = {order}")
                 .into_boxed_str(),
         );
         let challenges: &'static str = Box::leak(
-            format!("[[challenge]]\nid = \"{challenge}\"\ntitle = \"T\"\nprompt = \"P\"\nkind = \"query\"\nsolution = \"S\"\nhints = [\"1\", \"2\", \"3\"]")
+            format!("[[challenge]]\nid = \"{challenge}\"\ntitle = \"T\"\nprompt = \"P\"\nkind = \"{kind}\"\nsolution = \"S\"\nhints = [\"1\", \"2\", \"3\"]")
                 .into_boxed_str(),
         );
         RawTrack {
@@ -162,6 +190,21 @@ mod tests {
         assert_eq!(catalog.track("three"), None);
         assert_eq!(catalog.challenge(&ChallengeId::new("two", "a")), None);
         assert_eq!(catalog.challenge(&ChallengeId::new("three", "b")), None);
+    }
+
+    #[test]
+    fn a_track_with_an_unknown_kind_is_left_out() {
+        let (catalog, errors) = Catalog::load(&[raw_of_kind("odd", 1, "a", "mutation")]);
+        assert!(catalog.tracks().is_empty());
+        assert_eq!(
+            errors,
+            [ContentError::Field {
+                file: "odd/challenges.toml".to_owned(),
+                challenge: "a".to_owned(),
+                field: "kind",
+                problem: "names no kind Quarry knows",
+            }]
+        );
     }
 
     #[test]
