@@ -67,6 +67,7 @@ impl Workspace {
             id,
             title: tab.title.clone(),
             text: view.read(cx).text(cx),
+            challenge: None,
         };
         closed_tabs::remember(&mut self.closed, draft);
     }

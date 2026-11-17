@@ -18,10 +18,12 @@ const STEPS: &[&str] = &[
         title TEXT NOT NULL,
         text TEXT NOT NULL
     );",
+    "ALTER TABLE drafts ADD COLUMN challenge TEXT;
+    ALTER TABLE closed_tabs ADD COLUMN challenge TEXT;",
 ];
 
 /// The schema version this build writes.
-pub const VERSION: i64 = 2;
+pub const VERSION: i64 = 3;
 
 /// Brings the schema up to [`VERSION`] in one transaction.
 ///
@@ -91,7 +93,7 @@ mod tests {
             )
             .unwrap();
         migrate(&mut connection).unwrap();
-        assert_eq!(version(&connection), 2);
+        assert_eq!(version(&connection), VERSION);
         let kept: String = connection
             .query_row("SELECT text FROM drafts WHERE id = 4", [], |row| row.get(0))
             .unwrap();
