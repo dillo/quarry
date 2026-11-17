@@ -1,0 +1,10 @@
+title = "Vinyl Vault"
+emoji = "🎧"
+intro = """
+You've just started at Vinyl Vault, a second-hand record shop down a side \
+street. The owner keeps every artist, album and pressing in a small \
+database, and customers ask questions all day. Answer them with SQL.\
+"""
+concepts = ["SELECT", "WHERE", "ORDER BY", "LIMIT", "DISTINCT", "CASE", "NULL handling", "basic functions"]
+difficulty = "Beginner"
+order = 1
