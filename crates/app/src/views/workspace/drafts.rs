@@ -77,7 +77,7 @@ impl Workspace {
                     id: tab.id,
                     title: tab.title.clone(),
                     text: self.views.get(&tab.id)?.read(cx).text(cx),
-                    challenge: None,
+                    challenge: self.challenge(tab.id).map(ToString::to_string),
                 })
             })
             .collect();

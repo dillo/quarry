@@ -129,14 +129,17 @@ impl Workspace {
         workspace
     }
 
-    /// Creates a view per tab, with its saved text; a fresh start shows the
-    /// welcome query.
+    /// Creates a view per tab, with its saved text, and a sandbox per saved
+    /// challenge tab; a fresh start shows the welcome query.
     fn add_views(&mut self, drafts: &Drafts, window: &mut Window, cx: &mut Context<Self>) {
         let ids: Vec<TabId> = self.tabs.tabs().iter().map(|tab| tab.id).collect();
         for id in ids {
             let saved = drafts.tabs.iter().find(|draft| draft.id == id);
             let text = saved.map_or(editor::WELCOME, |draft| draft.text.as_str());
             self.add_view(id, text, window, cx);
+            if let Some(draft) = saved {
+                self.restore_sandbox(draft, cx);
+            }
         }
     }
 

@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use gpui_kit::{Context, Window};
 use quarry_challenges::catalog::ChallengeId;
 use quarry_engine::session::Session;
+use quarry_store::drafts::Draft;
 
 use super::Workspace;
 use crate::{model::tabs::TabId, tracks::Tracks};
@@ -64,7 +65,7 @@ impl Workspace {
     /// Opens a tab for challenge `id`, titled after it and holding `text`,
     /// after the active one, on a fresh sandbox. Returns `false`, opening
     /// nothing, when the challenge doesn't exist or its sandbox can't be
-    /// made; the status bar then says why.
+    /// made.
     pub(super) fn open_sandbox_tab(
         &mut self,
         id: &ChallengeId,
@@ -76,25 +77,50 @@ impl Workspace {
             return false;
         };
         let title = challenge.title.clone();
+        let Some(sandbox) = self.sandbox(id, &title, cx) else {
+            return false;
+        };
+        let tab = self.tabs.reopen(title);
+        self.challenges.sandboxes.insert(tab, sandbox);
+        self.add_view(tab, text, window, cx);
+        true
+    }
+
+    /// Makes the restored tab `draft` a challenge tab again, when it played
+    /// a challenge that still exists. Otherwise it stays a plain tab and
+    /// keeps its text.
+    pub(super) fn restore_sandbox(&mut self, draft: &Draft, cx: &mut Context<Self>) {
+        let id = draft.challenge.as_deref().and_then(ChallengeId::parse);
+        let Some(id) = id.filter(|id| self.challenges.tracks.challenge(id).is_some()) else {
+            return;
+        };
+        if let Some(sandbox) = self.sandbox(&id, &draft.title, cx) {
+            self.challenges.sandboxes.insert(draft.id, sandbox);
+        }
+    }
+
+    /// A fresh sandbox for challenge `id`. When it can't be made, the status
+    /// bar says why, naming the tab `title`.
+    fn sandbox(
+        &mut self,
+        id: &ChallengeId,
+        title: &str,
+        cx: &mut Context<Self>,
+    ) -> Option<Sandbox> {
         match self.challenges.tracks.sandbox(id) {
-            Ok(session) => {
-                let tab = self.tabs.reopen(title);
-                let challenge = id.clone();
-                self.challenges
-                    .sandboxes
-                    .insert(tab, Sandbox { challenge, session });
-                self.add_view(tab, text, window, cx);
-                true
-            }
+            Ok(session) => Some(Sandbox {
+                challenge: id.clone(),
+                session,
+            }),
             Err(error) => {
                 self.show_note(format!("Couldn't open {title}: {error}"), cx);
-                false
+                None
             }
         }
     }
 
     /// The open tab playing challenge `id`.
-    fn challenge_tab(&self, id: &ChallengeId) -> Option<TabId> {
+    pub(super) fn challenge_tab(&self, id: &ChallengeId) -> Option<TabId> {
         self.challenges
             .sandboxes
             .iter()

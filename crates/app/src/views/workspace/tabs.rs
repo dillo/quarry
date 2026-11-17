@@ -1,6 +1,7 @@
 //! The workspace's query tabs: opening, closing, reopening and switching.
 
 use gpui_kit::{AppContext, Context, Entity, Window};
+use quarry_challenges::catalog::ChallengeId;
 use quarry_store::drafts::Draft;
 
 use super::Workspace;
@@ -68,7 +69,7 @@ impl Workspace {
             id,
             title: tab.title.clone(),
             text: view.read(cx).text(cx),
-            challenge: None,
+            challenge: self.challenge(id).map(ToString::to_string),
         };
         closed_tabs::remember(&mut self.closed, draft);
     }
@@ -79,14 +80,25 @@ impl Workspace {
     }
 
     /// Reopens closed tab `index` as a new tab after the active one, with
-    /// its title and text, and saves at once. An index past the list does
-    /// nothing.
+    /// its title and text, and saves at once. A challenge tab reopens on a
+    /// fresh sandbox; when its challenge is gone or already open, it comes
+    /// back as a plain tab so its text isn't lost. An index past the list
+    /// does nothing.
     pub fn reopen_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(draft) = closed_tabs::take(&mut self.closed, index) else {
             return;
         };
-        let id = self.tabs.reopen(draft.title);
-        self.add_view(id, &draft.text, window, cx);
+        let challenge = draft
+            .challenge
+            .as_deref()
+            .and_then(ChallengeId::parse)
+            .filter(|id| self.challenge_tab(id).is_none());
+        let reopened =
+            challenge.is_some_and(|id| self.open_sandbox_tab(&id, &draft.text, window, cx));
+        if !reopened {
+            let id = self.tabs.reopen(draft.title);
+            self.add_view(id, &draft.text, window, cx);
+        }
         self.tabs_changed(window, cx);
     }
 
