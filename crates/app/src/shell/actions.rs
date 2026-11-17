@@ -15,6 +15,8 @@ actions!(
         RunAll,
         /// Shows how the database would run the current statement.
         Explain,
+        /// Checks the challenge tab's answer.
+        CheckAnswer,
         /// Cancels the running query.
         CancelRun,
         /// Opens a new query tab.
@@ -66,6 +68,8 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE)),
         KeyBinding::new("cmd-enter", RunStatement, Some(WORKSPACE_EDITOR)),
         KeyBinding::new("cmd-shift-r", RunAll, Some(WORKSPACE)),
+        KeyBinding::new("cmd-shift-enter", CheckAnswer, Some(WORKSPACE)),
+        KeyBinding::new("cmd-shift-enter", CheckAnswer, Some(WORKSPACE_EDITOR)),
         KeyBinding::new("cmd-e", Explain, Some(WORKSPACE)),
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE)),
         KeyBinding::new("cmd-.", CancelRun, Some(WORKSPACE_EDITOR)),
@@ -114,6 +118,7 @@ pub fn commands() -> Vec<Command> {
         command("Copy as JSON", || Box::new(CopyJson), "Edit"),
         command("Run Statement", || Box::new(RunStatement), "Query"),
         command("Run All", || Box::new(RunAll), "Query"),
+        command("Check Answer", || Box::new(CheckAnswer), "Query"),
         command("Explain", || Box::new(Explain), "Query"),
         command("Cancel", || Box::new(CancelRun), "Query"),
         command("Open Palette", || Box::new(OpenPalette), "View"),

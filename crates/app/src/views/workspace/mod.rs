@@ -31,6 +31,7 @@ use quarry_ui_kit::Aurora;
 
 use self::challenges::Challenges;
 pub use self::{
+    challenges::NOT_A_CHALLENGE,
     copy::NOTE_TIME,
     drafts::{AUTOSAVE, SavedTabs, save_in_order},
     tab_strip::tab_element_id,

@@ -6,11 +6,17 @@ use std::collections::BTreeMap;
 
 use gpui_kit::{Context, Window};
 use quarry_challenges::catalog::ChallengeId;
+use quarry_challenges::track::Challenge;
 use quarry_engine::session::Session;
 use quarry_store::drafts::Draft;
 
 use super::Workspace;
-use crate::{model::tabs::TabId, tracks::Tracks};
+use crate::{
+    model::tabs::TabId, shell::actions::CheckAnswer, tracks::Tracks, views::query_tab::QueryTab,
+};
+
+/// What ⌘⇧↵ says in a tab that isn't a challenge tab.
+pub const NOT_A_CHALLENGE: &str = "Check answer works in challenge tabs";
 
 /// The tracks, and the sandbox of every open challenge tab.
 pub(super) struct Challenges {
@@ -81,8 +87,8 @@ impl Workspace {
             return false;
         };
         let tab = self.tabs.reopen(title);
-        self.challenges.sandboxes.insert(tab, sandbox);
         self.add_view(tab, text, window, cx);
+        self.attach(tab, sandbox, cx);
         true
     }
 
@@ -95,7 +101,7 @@ impl Workspace {
             return;
         };
         if let Some(sandbox) = self.sandbox(&id, &draft.title, cx) {
-            self.challenges.sandboxes.insert(draft.id, sandbox);
+            self.attach(draft.id, sandbox, cx);
         }
     }
 
@@ -116,6 +122,37 @@ impl Workspace {
                 self.show_note(format!("Couldn't open {title}: {error}"), cx);
                 None
             }
+        }
+    }
+
+    /// Checks the active challenge tab's answer; anywhere else, the status
+    /// bar says checking needs a challenge tab.
+    pub(super) fn check_answer(&mut self, _: &CheckAnswer, _: &mut Window, cx: &mut Context<Self>) {
+        let Some((slug, challenge)) = self.active_challenge_details() else {
+            self.show_note(NOT_A_CHALLENGE.to_owned(), cx);
+            return;
+        };
+        match self.challenges.tracks.template(&slug) {
+            Ok(template) => {
+                let tab = self.active_tab().clone();
+                tab.update(cx, |tab, cx| tab.check(template, challenge, cx));
+            }
+            Err(error) => self.show_note(error.to_string(), cx),
+        }
+    }
+
+    /// The active challenge's track slug and challenge.
+    fn active_challenge_details(&self) -> Option<(String, Challenge)> {
+        let id = self.active_challenge()?;
+        let (track, challenge) = self.challenges.tracks.challenge(id)?;
+        Some((track.slug.clone(), challenge.clone()))
+    }
+
+    /// Makes `tab` a challenge tab on `sandbox`, with the Check view.
+    fn attach(&mut self, tab: TabId, sandbox: Sandbox, cx: &mut Context<Self>) {
+        self.challenges.sandboxes.insert(tab, sandbox);
+        if let Some(view) = self.views.get(&tab) {
+            view.update(cx, QueryTab::play_challenge);
         }
     }
 

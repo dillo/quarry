@@ -42,7 +42,7 @@ fn every_command_but_the_other_copy_formats_has_a_key_binding() {
         .collect();
     let unbound = ["quarry::CopyCsv", "quarry::CopyJson"];
     let commands = actions::commands();
-    assert_eq!(commands.len(), 17);
+    assert_eq!(commands.len(), 18);
     for command in commands {
         let name = (command.action)().name();
         assert!(
@@ -71,6 +71,16 @@ fn the_menus_are_the_command_table_in_order() {
         .collect();
     assert_eq!(items, labels);
     assert_eq!(items[3..6], ["Copy as TSV", "Copy as CSV", "Copy as JSON"]);
+    assert_eq!(
+        items[6..11],
+        [
+            "Run Statement",
+            "Run All",
+            "Check Answer",
+            "Explain",
+            "Cancel"
+        ]
+    );
 }
 
 #[test]
