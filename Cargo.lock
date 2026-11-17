@@ -5604,6 +5604,7 @@ version = "0.0.0"
 dependencies = [
  "async-channel",
  "gpui-kit",
+ "quarry-challenges",
  "quarry-engine",
  "quarry-store",
  "quarry-ui-kit",

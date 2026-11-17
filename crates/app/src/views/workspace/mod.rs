@@ -1,9 +1,11 @@
 //! The workspace: schema sidebar, query tabs, and the status bar.
 //!
 //! This module owns the workspace's state and its window commands;
-//! [`tabs`] opens, closes and switches tabs, [`drafts`] saves them,
-//! [`runs`] submits runs and reads the schema, and [`layout`] draws it.
+//! [`tabs`] opens, closes and switches tabs, [`challenges`] gives
+//! challenge tabs their sandboxes, [`drafts`] saves them, [`runs`] submits
+//! runs and reads the schema, and [`layout`] draws it.
 
+mod challenges;
 mod copy;
 mod drafts;
 mod layout;
@@ -27,6 +29,7 @@ use quarry_engine::session::Session;
 use quarry_store::drafts::{Draft, DraftStore, Drafts};
 use quarry_ui_kit::Aurora;
 
+use self::challenges::Challenges;
 pub use self::{
     copy::NOTE_TIME,
     drafts::{AUTOSAVE, SavedTabs, save_in_order},
@@ -55,12 +58,14 @@ pub const SIDEBAR_WIDTH: f32 = 240.0;
 
 /// The main window's content.
 ///
-/// Every tab in `tabs` has a view in `views`.
+/// Every tab in `tabs` has a view in `views`; challenge tabs also have a
+/// sandbox in `challenges`.
 pub struct Workspace {
     session: Session,
     database: String,
     tabs: TabList,
     views: BTreeMap<TabId, Entity<QueryTab>>,
+    challenges: Challenges,
     closed: Vec<Draft>,
     store: Arc<dyn DraftStore>,
     open_problem: Option<String>,
@@ -96,6 +101,7 @@ impl Workspace {
             database: database.to_owned(),
             tabs: restored_tabs(&drafts),
             views: BTreeMap::new(),
+            challenges: Challenges::embedded(),
             closed: drafts.closed.clone(),
             store,
             open_problem: problem,

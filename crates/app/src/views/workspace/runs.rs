@@ -1,4 +1,4 @@
-//! Submits the active tab's runs and plans to the session, and reads the
+//! Submits the active tab's runs and plans to its session, and reads its
 //! schema.
 
 use gpui_kit::{Context, Window};
@@ -24,7 +24,7 @@ impl Workspace {
         let Some(sql) = tab.read(cx).target_sql(cx) else {
             return;
         };
-        let handle = self.session.run(sql.clone());
+        let handle = self.session().run(sql.clone());
         tab.update(cx, |tab, cx| {
             tab.start(sql, RunScope::Statement, handle, cx);
         });
@@ -38,7 +38,7 @@ impl Workspace {
         if splitter::split(&script).is_empty() {
             return;
         }
-        let handle = self.session.run(script.clone());
+        let handle = self.session().run(script.clone());
         tab.update(cx, |tab, cx| {
             tab.start(script, RunScope::Script, handle, cx);
         });
@@ -51,7 +51,7 @@ impl Workspace {
         let Some(sql) = tab.read(cx).target_sql(cx) else {
             return;
         };
-        let reply = self.session.plan(sql);
+        let reply = self.session().plan(sql);
         tab.update(cx, |tab, cx| tab.explain(reply, cx));
     }
 
@@ -59,9 +59,10 @@ impl Workspace {
         self.active_tab().clone().update(cx, QueryTab::cancel);
     }
 
-    /// Reads the schema after any queued runs and shows it in the sidebar.
+    /// Reads the active tab's schema after any queued runs and shows it in
+    /// the sidebar.
     pub(super) fn read_schema(&mut self, cx: &mut Context<Self>) {
-        let reply = self.session.schema();
+        let reply = self.session().schema();
         let tree = self.schema.clone();
         self.schema_read = Some(cx.spawn(async move |_, cx| {
             let schema = poll_reply(reply, cx.background_executor().clone()).await;

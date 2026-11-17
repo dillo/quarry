@@ -1,0 +1,143 @@
+//! Challenge tabs: each plays one challenge on its own sandbox, a session
+//! on a fresh copy of its track's database. Plain tabs share the sample
+//! database.
+
+use std::collections::BTreeMap;
+
+use gpui_kit::{Context, Window};
+use quarry_challenges::catalog::ChallengeId;
+use quarry_engine::session::Session;
+
+use super::Workspace;
+use crate::{model::tabs::TabId, tracks::Tracks};
+
+/// The tracks, and the sandbox of every open challenge tab.
+pub(super) struct Challenges {
+    tracks: Tracks,
+    sandboxes: BTreeMap<TabId, Sandbox>,
+}
+
+impl Challenges {
+    /// The embedded tracks, with no challenge tab open.
+    pub(super) fn embedded() -> Self {
+        Self {
+            tracks: Tracks::embedded(),
+            sandboxes: BTreeMap::new(),
+        }
+    }
+}
+
+/// What makes a tab a challenge tab.
+struct Sandbox {
+    challenge: ChallengeId,
+    session: Session,
+}
+
+impl Workspace {
+    /// The challenge tracks.
+    pub fn tracks(&self) -> &Tracks {
+        &self.challenges.tracks
+    }
+
+    /// Opens challenge `id`: activates its tab if one is open, or opens a
+    /// new tab after the active one holding its skeleton. A challenge that
+    /// doesn't exist does nothing.
+    pub fn open_challenge(
+        &mut self,
+        id: &ChallengeId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(tab) = self.challenge_tab(id) {
+            self.activate_tab(tab, window, cx);
+            return;
+        }
+        let Some((_, challenge)) = self.challenges.tracks.challenge(id) else {
+            return;
+        };
+        let skeleton = challenge.skeleton.clone();
+        if self.open_sandbox_tab(id, &skeleton, window, cx) {
+            self.tabs_changed(window, cx);
+        }
+    }
+
+    /// Opens a tab for challenge `id`, titled after it and holding `text`,
+    /// after the active one, on a fresh sandbox. Returns `false`, opening
+    /// nothing, when the challenge doesn't exist or its sandbox can't be
+    /// made; the status bar then says why.
+    pub(super) fn open_sandbox_tab(
+        &mut self,
+        id: &ChallengeId,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some((_, challenge)) = self.challenges.tracks.challenge(id) else {
+            return false;
+        };
+        let title = challenge.title.clone();
+        match self.challenges.tracks.sandbox(id) {
+            Ok(session) => {
+                let tab = self.tabs.reopen(title);
+                let challenge = id.clone();
+                self.challenges
+                    .sandboxes
+                    .insert(tab, Sandbox { challenge, session });
+                self.add_view(tab, text, window, cx);
+                true
+            }
+            Err(error) => {
+                self.show_note(format!("Couldn't open {title}: {error}"), cx);
+                false
+            }
+        }
+    }
+
+    /// The open tab playing challenge `id`.
+    fn challenge_tab(&self, id: &ChallengeId) -> Option<TabId> {
+        self.challenges
+            .sandboxes
+            .iter()
+            .find(|(_, sandbox)| &sandbox.challenge == id)
+            .map(|(tab, _)| *tab)
+    }
+
+    /// The challenge tab `tab` plays, if it is a challenge tab.
+    pub fn challenge(&self, tab: TabId) -> Option<&ChallengeId> {
+        self.challenges
+            .sandboxes
+            .get(&tab)
+            .map(|sandbox| &sandbox.challenge)
+    }
+
+    /// The challenge the active tab plays, if it is a challenge tab.
+    pub fn active_challenge(&self) -> Option<&ChallengeId> {
+        self.challenge(self.tabs.active_id())
+    }
+
+    /// The session the active tab runs on: its sandbox, or the sample
+    /// database.
+    pub(super) fn session(&self) -> &Session {
+        self.challenges
+            .sandboxes
+            .get(&self.tabs.active_id())
+            .map_or(&self.session, |sandbox| &sandbox.session)
+    }
+
+    /// What the status bar calls the active tab's database, such as
+    /// "Vinyl Vault · sandbox".
+    pub fn database(&self) -> String {
+        let track = self
+            .active_challenge()
+            .and_then(|id| self.challenges.tracks.catalog().track(id.track()));
+        track.map_or_else(
+            || self.database.clone(),
+            |track| format!("{} · sandbox", track.title),
+        )
+    }
+
+    /// Forgets tab `tab`'s sandbox, ending its session.
+    pub(super) fn drop_sandbox(&mut self, tab: TabId) {
+        self.challenges.sandboxes.remove(&tab);
+    }
+}

@@ -106,7 +106,7 @@ impl Workspace {
         let summary = status::run_summary(output, output.elapsed(Instant::now()));
         let cursor = tab.editor().read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
-        let mut bar = StatusBar::new().left(format!("● {}", self.database));
+        let mut bar = StatusBar::new().left(format!("● {}", self.database()));
         if let Some(problem) = self.drafts_problem() {
             bar = bar.left(drafts_warning(problem));
         }

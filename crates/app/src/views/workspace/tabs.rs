@@ -46,6 +46,7 @@ impl Workspace {
         let closing = self.tabs.active_id();
         self.remember(closing, cx);
         let opened = self.tabs.close(closing);
+        self.drop_sandbox(closing);
         let closed = self.views.remove(&closing);
         // A run that is cut off never emits `RunEnded`, so read the schema for it.
         if closed.is_some_and(|tab| tab.read(cx).output(cx).is_running()) {
@@ -111,9 +112,11 @@ impl Workspace {
         }
     }
 
-    /// Saves, focuses the active tab's editor, and redraws.
-    fn tabs_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Saves, shows the active tab's schema, focuses its editor, and
+    /// redraws.
+    pub(super) fn tabs_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.save_now(cx);
+        self.read_schema(cx);
         self.editor(cx)
             .update(cx, |state, cx| state.focus(window, cx));
         cx.notify();
