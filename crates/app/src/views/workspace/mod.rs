@@ -97,12 +97,13 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Self {
         let (store, drafts, problem) = saved.open();
+        let challenges = Challenges::embedded();
         let mut workspace = Self {
             session,
             database: database.to_owned(),
-            tabs: restored_tabs(&drafts),
+            tabs: restored_tabs(&drafts, &challenges),
             views: BTreeMap::new(),
-            challenges: Challenges::embedded(),
+            challenges,
             closed: drafts.closed.clone(),
             store,
             open_problem: problem,
@@ -119,15 +120,21 @@ impl Workspace {
             copying: None,
             palette: Rc::new(PaletteSourceRegistry::standard()),
             shown_palette: WeakEntity::new_invalid(),
-            _quit: cx.on_app_quit(|workspace, cx| {
-                workspace.save_before_quit(cx);
-                async {}
-            }),
+            _quit: Self::save_on_quit(cx),
         };
         workspace.add_views(&drafts, window, cx);
         workspace.read_schema(cx);
         Self::save_on_close(window.window_handle().window_id(), cx);
         workspace
+    }
+
+    /// Saves the tabs when the app quits, for as long as the subscription
+    /// lives.
+    fn save_on_quit(cx: &mut Context<Self>) -> Subscription {
+        cx.on_app_quit(|workspace, cx| {
+            workspace.save_before_quit(cx);
+            async {}
+        })
     }
 
     /// Creates a view per tab, with its saved text, and a sandbox per saved
@@ -219,14 +226,18 @@ fn focus_first_stop(container: &FocusHandle, window: &mut Window, cx: &mut App) 
     window.focus_next(cx);
 }
 
-/// The saved tabs as a [`TabList`]; none saved opens "Query 1".
-fn restored_tabs(drafts: &Drafts) -> TabList {
+/// The saved tabs as a [`TabList`]; none saved opens "Query 1". A challenge
+/// tab that still exists takes its title from the catalog, so a renamed
+/// challenge shows its new title; any other tab keeps its saved title.
+fn restored_tabs(drafts: &Drafts, challenges: &Challenges) -> TabList {
     let tabs = drafts
         .tabs
         .iter()
         .map(|draft| Tab {
             id: draft.id,
-            title: draft.title.clone(),
+            title: challenges
+                .title_of(draft)
+                .unwrap_or_else(|| draft.title.clone()),
         })
         .collect();
     TabList::restore(tabs, drafts.active)

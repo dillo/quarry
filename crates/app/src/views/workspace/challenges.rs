@@ -25,6 +25,14 @@ pub(super) struct Challenges {
 }
 
 impl Challenges {
+    /// The catalog title of the challenge `draft` played, if it still
+    /// exists.
+    pub(super) fn title_of(&self, draft: &Draft) -> Option<String> {
+        let id = draft.challenge.as_deref().and_then(ChallengeId::parse)?;
+        let (_, challenge) = self.tracks.challenge(&id)?;
+        Some(challenge.title.clone())
+    }
+
     /// The embedded tracks, with no challenge tab open.
     pub(super) fn embedded() -> Self {
         Self {

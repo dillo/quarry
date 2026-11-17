@@ -192,6 +192,20 @@ fn a_challenge_tab_and_its_draft_survive_a_restart(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
+fn a_restored_challenge_tab_takes_its_title_from_the_catalog(cx: &mut TestAppContext) {
+    install(cx);
+    let store = store_with(vec![draft(
+        3,
+        "Old name",
+        "SELECT title",
+        Some("vinyl-vault/first-spin"),
+    )])
+    .expect("a saved store");
+    let (workspace, cx) = open_with(cx, store).expect("the sample database opens");
+    assert_eq!(titles(&workspace, cx), ["First spin"]);
+}
+
+#[gpui_kit::test]
 fn a_tab_whose_challenge_is_gone_comes_back_plain_with_its_text(cx: &mut TestAppContext) {
     install(cx);
     let store = store_with(vec![draft(
