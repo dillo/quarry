@@ -198,3 +198,41 @@ fn user_tables_that_resemble_internal_names_are_listed() -> TestResult {
     assert_eq!(names, ["SqliteSettings"]);
     Ok(())
 }
+
+#[test]
+fn a_copy_holds_the_same_data_and_changes_independently() -> TestResult {
+    let mut original = crew()?;
+    let mut copy = SqliteDriver::copy_of(&original)?;
+    copy.execute_script("DELETE FROM astronauts WHERE name = 'Kenji'")?;
+    original.execute_script("INSERT INTO astronauts (name) VALUES ('Amara')")?;
+    let names = |driver: &mut SqliteDriver| -> Result<Vec<Vec<Value>>, EngineError> {
+        let mut result = QueryResult::default();
+        driver.execute("SELECT name FROM named ORDER BY name", &mut result)?;
+        Ok(result.rows)
+    };
+    assert_eq!(names(&mut copy)?, [[Value::Text("Valentina".to_owned())]]);
+    assert_eq!(
+        names(&mut original)?,
+        [
+            [Value::Text("Amara".to_owned())],
+            [Value::Text("Kenji".to_owned())],
+            [Value::Text("Valentina".to_owned())]
+        ]
+    );
+    Ok(())
+}
+
+#[test]
+fn a_copy_can_be_cancelled_on_its_own() -> TestResult {
+    let original = crew()?;
+    let mut copy = SqliteDriver::copy_of(&original)?;
+    copy.canceller().cancel();
+    let endless =
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT max(x) FROM n";
+    assert_eq!(
+        copy.execute(endless, &mut QueryResult::default()),
+        Err(EngineError::Cancelled)
+    );
+    assert!(!original.canceller().is_cancelled());
+    Ok(())
+}
