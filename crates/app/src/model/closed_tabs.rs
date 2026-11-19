@@ -43,6 +43,7 @@ mod tests {
             id: 0,
             title: title.to_owned(),
             text: text.to_owned(),
+            challenge: None,
         }
     }
 

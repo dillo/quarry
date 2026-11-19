@@ -1,0 +1,92 @@
+# Vinyl Vault's first challenges (Phase 2A). The rest arrive in 2E.
+
+[[challenge]]
+id = "first-spin"
+title = "First spin"
+prompt = """
+On your first morning the owner hands you a clipboard: "Write down every \
+album we've got, with the year it came out." List the title and year of \
+every album.\
+"""
+kind = "query"
+ordered = false
+concepts = ["SELECT"]
+solution = "SELECT title, year FROM albums;"
+hints = [
+    "Every album lives in one table. You only need two of its columns.",
+    "SELECT names the columns you want, and FROM names the table.",
+    "SELECT ___, ___ FROM ___;",
+]
+skeleton = "SELECT ___, ___\nFROM ___;"
+
+[[challenge]]
+id = "crate-digging"
+title = "Crate digging"
+prompt = """
+A collector wants anything from before 1975. List the title and year of \
+every album released before 1975.\
+"""
+kind = "query"
+ordered = false
+concepts = ["WHERE"]
+solution = "SELECT title, year FROM albums WHERE year < 1975;"
+hints = [
+    "Keep only some of the rows: the ones with an early year.",
+    "WHERE filters rows. Be careful whether 1975 itself counts.",
+    "SELECT title, year FROM albums WHERE year ___ ___;",
+]
+skeleton = "SELECT title, year\nFROM albums\nWHERE ___;"
+
+[[challenge]]
+id = "new-arrivals"
+title = "New arrivals"
+prompt = """
+The window display shows the newest records. List the title and year of \
+the five most recent albums, newest first.\
+"""
+kind = "query"
+ordered = true
+concepts = ["ORDER BY", "LIMIT"]
+solution = "SELECT title, year FROM albums ORDER BY year DESC LIMIT 5;"
+hints = [
+    "Sort the albums by year so the newest come first, then keep the top few.",
+    "ORDER BY ... DESC sorts from highest to lowest, and LIMIT keeps the first rows.",
+    "SELECT title, year FROM albums ORDER BY ___ ___ LIMIT ___;",
+]
+skeleton = "SELECT title, year\nFROM albums\nORDER BY ___\nLIMIT ___;"
+
+[[challenge]]
+id = "every-genre"
+title = "Every genre"
+prompt = """
+The owner is making new divider cards for the racks, one per genre. List \
+each genre once.\
+"""
+kind = "query"
+ordered = false
+concepts = ["DISTINCT"]
+solution = "SELECT DISTINCT genre FROM albums;"
+hints = [
+    "Many albums share a genre, but each card should appear only once.",
+    "DISTINCT removes repeated rows from a result.",
+    "SELECT ___ genre FROM albums;",
+]
+skeleton = "SELECT ___\nFROM albums;"
+
+[[challenge]]
+id = "unknown-origins"
+title = "Unknown origins"
+prompt = """
+Some artists arrived with no paperwork, so nobody knows where they're from. \
+List the names of the artists whose country is unknown.\
+"""
+kind = "query"
+ordered = false
+concepts = ["NULL handling"]
+solution = "SELECT name FROM artists WHERE country IS NULL;"
+hints = [
+    "An unknown country is stored as NULL, which isn't equal to anything, not even NULL.",
+    "Test for NULL with IS NULL, not with =.",
+    "SELECT name FROM artists WHERE country ___ ___;",
+]
+skeleton = "SELECT name\nFROM artists\nWHERE ___;"

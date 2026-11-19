@@ -54,6 +54,7 @@ fn draft(id: i64, title: &str, text: &str) -> Draft {
         id,
         title: title.to_owned(),
         text: text.to_owned(),
+        challenge: None,
     }
 }
 

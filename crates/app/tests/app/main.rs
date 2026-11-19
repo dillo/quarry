@@ -2,6 +2,8 @@
 //!
 //! One test binary, so the helpers in [`support`] are shared.
 
+mod challenges;
+mod check;
 mod copy;
 mod palette;
 mod runs;

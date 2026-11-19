@@ -66,12 +66,13 @@ fn index(position: usize) -> i64 {
 /// The open tabs, left to right.
 fn load_tabs(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
     let mut statement =
-        connection.prepare("SELECT id, title, text FROM drafts ORDER BY position")?;
+        connection.prepare("SELECT id, title, text, challenge FROM drafts ORDER BY position")?;
     let tabs = statement.query_map([], |row| {
         Ok(Draft {
             id: row.get(0)?,
             title: row.get(1)?,
             text: row.get(2)?,
+            challenge: row.get(3)?,
         })
     })?;
     Ok(tabs.collect::<Result<Vec<_>, _>>()?)
@@ -80,12 +81,13 @@ fn load_tabs(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
 /// The recently closed tabs, newest first, each with id 0.
 fn load_closed(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
     let mut statement =
-        connection.prepare("SELECT title, text FROM closed_tabs ORDER BY position")?;
+        connection.prepare("SELECT title, text, challenge FROM closed_tabs ORDER BY position")?;
     let closed = statement.query_map([], |row| {
         Ok(Draft {
             id: 0,
             title: row.get(0)?,
             text: row.get(1)?,
+            challenge: row.get(2)?,
         })
     })?;
     Ok(closed.collect::<Result<Vec<_>, _>>()?)
@@ -106,8 +108,15 @@ fn save_tabs(connection: &Connection, tabs: &[Draft]) -> Result<(), StoreError> 
     connection.execute("DELETE FROM drafts", [])?;
     for (position, draft) in tabs.iter().enumerate() {
         connection.execute(
-            "INSERT INTO drafts (id, position, title, text) VALUES (?1, ?2, ?3, ?4)",
-            params![draft.id, index(position), draft.title, draft.text],
+            "INSERT INTO drafts (id, position, title, text, challenge)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                draft.id,
+                index(position),
+                draft.title,
+                draft.text,
+                draft.challenge
+            ],
         )?;
     }
     Ok(())
@@ -118,8 +127,9 @@ fn save_closed(connection: &Connection, closed: &[Draft]) -> Result<(), StoreErr
     connection.execute("DELETE FROM closed_tabs", [])?;
     for (position, draft) in closed.iter().enumerate() {
         connection.execute(
-            "INSERT INTO closed_tabs (position, title, text) VALUES (?1, ?2, ?3)",
-            params![index(position), draft.title, draft.text],
+            "INSERT INTO closed_tabs (position, title, text, challenge)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![index(position), draft.title, draft.text, draft.challenge],
         )?;
     }
     Ok(())

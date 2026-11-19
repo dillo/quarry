@@ -72,17 +72,20 @@ fn command_k_again_closes_the_palette(cx: &mut TestAppContext) {
 }
 
 #[gpui_kit::test]
-fn an_empty_query_lists_tabs_then_tables_then_commands(cx: &mut TestAppContext) {
+fn an_empty_query_lists_tabs_then_challenges_tables_and_commands(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     cx.simulate_keystrokes("cmd-t");
     search(cx, "");
     let groups = groups(&workspace, cx);
     let headings: Vec<&str> = groups.iter().map(|(title, _)| title.as_str()).collect();
-    assert_eq!(headings, ["Open tabs", "Tables & views", "Commands"]);
+    assert_eq!(
+        headings,
+        ["Open tabs", "Challenges", "Tables & views", "Commands"]
+    );
     assert_eq!(groups[0].1, ["Query 1", "Query 2"]);
-    assert!(groups[1].1.contains(&"astronauts".to_owned()));
-    assert_eq!(groups[2].1[..3], ["New Tab", "Close Tab", "Copy as TSV"]);
-    assert!(!groups[2].1.contains(&"Quit Quarry".to_owned()));
+    assert!(groups[2].1.contains(&"astronauts".to_owned()));
+    assert_eq!(groups[3].1[..3], ["New Tab", "Close Tab", "Copy as TSV"]);
+    assert!(!groups[3].1.contains(&"Quit Quarry".to_owned()));
     let current = cx.update(|_, cx| {
         let palette = workspace.read(cx).palette();
         palette.map(|p| p.read(cx).groups()[0].items[1].detail.clone())
@@ -193,4 +196,41 @@ fn a_table_that_is_gone_focuses_nothing(cx: &mut TestAppContext) {
         assert_eq!(schema.focused_table(window), None);
         assert!(schema.expanded().is_empty());
     });
+}
+
+#[gpui_kit::test]
+fn challenges_are_listed_in_play_order_with_their_track_and_place(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    search(cx, "");
+    let challenges = cx.update(|_, cx| {
+        let palette = workspace.read(cx).palette();
+        let groups = palette.map(|p| p.read(cx).groups()).unwrap_or_default();
+        groups
+            .into_iter()
+            .find(|group| group.title == "Challenges")
+            .map(|group| group.items)
+            .unwrap_or_default()
+    });
+    let shown: Vec<(&str, &str)> = challenges
+        .iter()
+        .map(|item| (item.label.as_str(), item.detail.as_str()))
+        .collect();
+    assert_eq!(shown[0], ("First spin", "Vinyl Vault · 1 of 5"));
+    assert_eq!(shown[4], ("Unknown origins", "Vinyl Vault · 5 of 5"));
+}
+
+#[gpui_kit::test]
+fn picking_a_challenge_opens_it(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    search(cx, "crate digging");
+    cx.simulate_keystrokes("enter");
+    assert!(settle(cx, |window, cx| !window.has_active_dialog(cx)));
+    let opened = cx.update(|_, cx| {
+        workspace
+            .read(cx)
+            .active_challenge()
+            .map(ToString::to_string)
+    });
+    assert_eq!(opened.as_deref(), Some("vinyl-vault/crate-digging"));
+    assert!(editor_focused(&workspace, cx));
 }

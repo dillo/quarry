@@ -1,8 +1,10 @@
-//! The views under the editor: Results, Messages and Plan.
+//! The views under the editor: Results, Messages and Plan, and Check in a
+//! challenge tab.
 //!
 //! Each is a [`ResultView`] in the [`ResultViewRegistry`]; adding a view is
 //! a new module and one line in [`ResultViewRegistry::standard`].
 
+mod check;
 mod grid;
 mod messages;
 mod plan;
@@ -22,6 +24,8 @@ pub const RESULTS: &str = "results";
 pub const MESSAGES: &str = "messages";
 /// The id of the Plan view.
 pub const PLAN: &str = "plan";
+/// The id of the Check view.
+pub const CHECK: &str = "check";
 
 /// One view of a tab's run.
 pub trait ResultView {
@@ -51,6 +55,13 @@ impl ResultViewRegistry {
                 Box::new(plan::PlanView),
             ],
         }
+    }
+
+    /// Results, Messages, Plan and Check, for a challenge tab.
+    pub fn for_challenge() -> Self {
+        let mut registry = Self::standard();
+        registry.views.push(Box::new(check::CheckView));
+        registry
     }
 
     /// Every view, in switch order.

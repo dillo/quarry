@@ -1,9 +1,11 @@
-//! The ⌘K palette: open tabs, recently closed tabs, tables and commands.
+//! The ⌘K palette: open tabs, recently closed tabs, challenges, tables and
+//! commands.
 //!
 //! Each kind of item comes from a [`PaletteSource`] in the
 //! [`PaletteSourceRegistry`]; adding a source is a new module and one line
 //! in [`PaletteSourceRegistry::standard`]. [`dialog`] draws the palette.
 
+mod challenges;
 mod closed;
 mod commands;
 pub mod dialog;
@@ -43,12 +45,14 @@ pub struct PaletteSourceRegistry {
 }
 
 impl PaletteSourceRegistry {
-    /// Open tabs, recently closed tabs, tables and views, then commands.
+    /// Open tabs, recently closed tabs, challenges, tables and views, then
+    /// commands.
     pub fn standard() -> Self {
         Self {
             sources: vec![
                 Box::new(tabs::OpenTabs),
                 Box::new(closed::RecentlyClosed),
+                Box::new(challenges::Challenges),
                 Box::new(tables::Tables),
                 Box::new(commands::Commands),
             ],

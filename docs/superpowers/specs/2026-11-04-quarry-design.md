@@ -198,6 +198,7 @@ Tracks are embedded in the binary at compile time. All data is **fictional and g
 - **Check answer** runs against a fresh in-memory copy of the template, loaded with SQLite's backup API.
 - **Scratch tabs** use a persistent working copy. "Reset track database" restores it from the template.
 - **Guardrails:** a 5-second timeout (via SQLite's progress handler, and cancellable) and a 10,000-row cap while grading.
+- Phase 2A keeps each track's template in memory, built on first use, because Query challenges never change data; the on-disk template, the working copy and the reset arrive with Mutation challenges in 2D (ADR 0012).
 
 ### 5.3 Challenge kinds (`ChallengeKind`)
 

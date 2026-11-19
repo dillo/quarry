@@ -35,6 +35,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::run_statement))
             .on_action(cx.listener(Self::run_all))
             .on_action(cx.listener(Self::explain))
+            .on_action(cx.listener(Self::check_answer))
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(Self::new_tab))
             .on_action(cx.listener(Self::close_tab))
@@ -106,7 +107,7 @@ impl Workspace {
         let summary = status::run_summary(output, output.elapsed(Instant::now()));
         let cursor = tab.editor().read(cx).cursor_position();
         let place = format::position(cursor.line, cursor.character);
-        let mut bar = StatusBar::new().left(format!("● {}", self.database));
+        let mut bar = StatusBar::new().left(format!("● {}", self.database()));
         if let Some(problem) = self.drafts_problem() {
             bar = bar.left(drafts_warning(problem));
         }

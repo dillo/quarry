@@ -11,6 +11,14 @@ fn draft(id: i64, title: &str, text: &str) -> Draft {
         id,
         title: title.to_owned(),
         text: text.to_owned(),
+        challenge: None,
+    }
+}
+
+fn challenge_draft(id: i64, title: &str, challenge: &str) -> Draft {
+    Draft {
+        challenge: Some(challenge.to_owned()),
+        ..draft(id, title, "SELECT ___;")
     }
 }
 
@@ -86,7 +94,7 @@ fn leaves_a_newer_file_untouched() {
         error,
         Some(StoreError::TooNew {
             found: 5,
-            supported: 2
+            supported: 3
         })
     );
     assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -159,6 +167,44 @@ fn a_version_one_file_is_upgraded_and_keeps_its_tabs() {
             closed: Vec::new(),
         }
     );
+}
+
+#[test]
+fn challenge_ids_round_trip_through_tabs_and_closed_tabs() {
+    let store = SqliteStore::in_memory().unwrap();
+    let drafts = Drafts {
+        tabs: vec![
+            challenge_draft(2, "First spin", "vinyl-vault/first-spin"),
+            draft(3, "Query 1", "SELECT 1;"),
+        ],
+        active: 0,
+        closed: vec![challenge_draft(0, "Every genre", "vinyl-vault/every-genre")],
+    };
+    store.save(&drafts).unwrap();
+    assert_eq!(store.load().unwrap(), drafts);
+}
+
+#[test]
+fn a_version_two_file_is_upgraded_and_its_tabs_are_not_challenges() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("quarry.db");
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE drafts (id INTEGER PRIMARY KEY, position INTEGER NOT NULL,
+                 title TEXT NOT NULL, text TEXT NOT NULL);
+             CREATE TABLE state (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+             CREATE TABLE closed_tabs (position INTEGER NOT NULL, title TEXT NOT NULL,
+                 text TEXT NOT NULL);
+             INSERT INTO drafts VALUES (5, 0, 'Query 1', 'SELECT 1;');
+             INSERT INTO closed_tabs VALUES (0, 'Query 2', 'SELECT 2;');
+             PRAGMA user_version = 2;",
+        )
+        .unwrap();
+    drop(connection);
+    let loaded = SqliteStore::open(&path).unwrap().load().unwrap();
+    assert_eq!(loaded.tabs, [draft(5, "Query 1", "SELECT 1;")]);
+    assert_eq!(loaded.closed, [draft(0, "Query 2", "SELECT 2;")]);
 }
 
 #[test]

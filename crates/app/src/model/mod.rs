@@ -16,3 +16,4 @@ pub mod statements;
 pub mod status;
 pub mod tabs;
 pub mod target;
+pub mod verdict;

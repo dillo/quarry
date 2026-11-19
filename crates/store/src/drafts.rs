@@ -11,6 +11,9 @@ pub struct Draft {
     pub title: String,
     /// The editor text.
     pub text: String,
+    /// The full id of the challenge the tab plays, such as
+    /// `vinyl-vault/first-spin`; `None` for a plain query tab.
+    pub challenge: Option<String>,
 }
 
 /// Every open tab in order, which one is active, and the recently closed
@@ -68,6 +71,7 @@ mod tests {
                 id: 1,
                 title: "Query 1".to_owned(),
                 text: "SELECT 1".to_owned(),
+                challenge: None,
             }],
             active: 0,
             closed: Vec::new(),

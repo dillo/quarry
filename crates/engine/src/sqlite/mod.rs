@@ -5,9 +5,9 @@ mod explain;
 mod introspect;
 mod run;
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, backup::Backup};
 
 use crate::{
     driver::{Canceller, Driver},
@@ -19,6 +19,9 @@ use crate::{
 
 /// How many virtual-machine steps run between cancellation checks.
 const CANCEL_CHECK_STEPS: i32 = 1_000;
+
+/// How many pages a copy moves per backup step.
+const COPY_PAGES_PER_STEP: i32 = 256;
 
 /// A connection to one `SQLite` database file or in-memory database.
 pub struct SqliteDriver {
@@ -42,6 +45,20 @@ impl SqliteDriver {
     /// Returns [`EngineError::Open`] if `SQLite` cannot allocate it.
     pub fn open_in_memory() -> Result<Self, EngineError> {
         Self::from_connection(Connection::open_in_memory(), ":memory:")
+    }
+
+    /// A new in-memory database holding a copy of `source`, made with
+    /// `SQLite`'s backup API. The copy has its own [`Canceller`].
+    ///
+    /// # Errors
+    /// Returns [`EngineError::Open`] if the copy cannot be allocated, and
+    /// [`EngineError::Sql`] if the backup fails.
+    pub fn copy_of(source: &Self) -> Result<Self, EngineError> {
+        let mut copy = Self::open_in_memory()?;
+        Backup::new(&source.connection, &mut copy.connection)
+            .and_then(|backup| backup.run_to_completion(COPY_PAGES_PER_STEP, Duration::ZERO, None))
+            .map_err(convert::error)?;
+        Ok(copy)
     }
 
     /// Runs a whole script with no results, e.g. to load a schema and seed data.

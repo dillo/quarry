@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 async-channel.workspace = true
 gpui-kit = { workspace = true, features = ["assets"] }
+quarry-challenges = { path = "../challenges" }
 quarry-engine = { path = "../engine" }
 quarry-store = { path = "../store" }
 quarry-ui-kit = { path = "../ui-kit" }
