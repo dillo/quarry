@@ -19,7 +19,7 @@ Status: approved in brainstorming on 2026-11-19. Parent spec: `2026-11-04-quarry
 - The **feedback card**, which replaces 2A's plain-text Check view:
   - a wrong answer shows a checklist of every rule, each passed, failed or not checked;
   - a right answer shows "Next up: …" with Next challenge and Stay here buttons.
-- The **aurora pulse:** about 600 ms of teal light over the window on a right answer. It's skipped under Reduce Motion.
+- The **aurora pulse:** about 600 ms of teal light glowing in from the window's edges on a right answer. It's skipped under Reduce Motion.
 - **Prev/Next** across the whole catalog: within a track, then on to the next track.
 - Two follow-ups deferred from 2A:
   - `Tracks` is injected into `Workspace`;
@@ -82,7 +82,8 @@ In addition:
 - `Pulse`, modelled on `Transition`, is built from a start `Instant` and a duration.
   - `opacity(now) -> f32` rises from 0 to 1 at 25% of the duration, then falls back to 0 at the end, where it stays.
   - `is_done(now)` tells callers when to stop requesting frames.
-- `Role::Pulse` is teal at a low alpha, in both themes. `tests/contrast.rs` checks that body text over the pulse at its peak still meets the text contrast threshold.
+- `Role::Pulse` is an opaque teal: `#5eead4` in Aurora and `#0c8a7f` in Dawn. `tests/contrast.rs` checks it as a non-text color at 3:1 on every surface, as it does the focus ring.
+- A wash over the whole window was dropped during prototyping. In Dawn, body text already sits at 4.51:1, so any tint over it falls below 4.5:1 (ADR 0013).
 
 ### 3.3 App models
 
@@ -113,7 +114,7 @@ These modules are free of GPUI, need 100% line coverage and are mutation-tested.
 - **Check view:** the result view registered in 2A, rewritten to render the card.
 - **Pulse:**
   - The workspace starts a `Pulse` when a check returns `Solved`, unless `cx.reduce_motion()` is on.
-  - It draws a `Role::Pulse` overlay as the window's top layer, with no hit-testing, scaled by `opacity`, and requests frames until `is_done`.
+  - It draws the window's top layer: an inset shadow of `Role::Pulse` (64 px blur, 60% alpha at the peak) scaled by `opacity`, with no hitbox. It requests frames until `is_done`.
 - **Superseded checks:**
   - Each check runs with its own `Canceller`.
   - A newer check in the same tab trips the older one's canceller before starting.
@@ -156,7 +157,7 @@ From top to bottom:
 
 ### 4.4 The pulse
 
-- On a solve, a teal wash over the whole window rises for 150 ms and fades out by 600 ms. Input keeps working during the pulse.
+- On a solve, teal light glows in from the window's edges, rising for 150 ms and fading out by 600 ms. It covers almost no text, and input keeps working during the pulse.
 - Under Reduce Motion there is no pulse, and the card is the only feedback.
 
 ### 4.5 Attempts
@@ -184,7 +185,7 @@ From top to bottom:
 - **`ui-kit`:**
   - `Pulse` opacity at 0, the peak, the end and after the end;
   - `is_done`;
-  - the contrast of `Role::Pulse`.
+  - `Role::Pulse` at 3:1 on every surface.
 - **App models:** `attempts`, `brief` and `verdict` at 100% lines and 0 missed mutants.
 - **App (GPUI tests):**
   - the brief appears for a challenge tab and the empty state for a plain tab;
@@ -205,7 +206,7 @@ From top to bottom:
 5. App: `InspectorRegistry`, `BriefView` and `EmptyView`, the fourth column, ⌘⌥I and `inspector_open`.
 6. App: Prev/Next in the brief, and the `PreviousChallenge`/`NextChallenge` actions and commands.
 7. App: the feedback card (`model/verdict` extended, and the Check view rewritten), with Next challenge and Stay here.
-8. ui-kit and app: `motion::PULSE`, `Pulse`, `Role::Pulse` and its contrast test, and the overlay on a solve.
+8. ui-kit and app: `motion::PULSE`, `Pulse`, `Role::Pulse` and its contrast test, and the edge glow on a solve.
 9. ADR 0013 "Brief, feedback and pulse", the README, and a note in the parent spec's §4.3 (attempts are session-only until 2C, and the progress glow and the opt-in reveals come in 2C).
 
 As in 1C–2A, a verified prototype is built first, and the plan is generated from it.
