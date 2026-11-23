@@ -4,24 +4,32 @@
 
 use std::collections::BTreeMap;
 
-use gpui_kit::{Context, Window};
-use quarry_challenges::catalog::ChallengeId;
-use quarry_challenges::track::Challenge;
+use gpui_kit::{AppContext, Context, Window};
+use quarry_challenges::{
+    catalog::ChallengeId,
+    check::{self, CheckError, Verdict},
+    track::Challenge,
+};
 use quarry_engine::session::Session;
 use quarry_store::drafts::Draft;
 
 use super::Workspace;
 use crate::{
-    model::tabs::TabId, shell::actions::CheckAnswer, tracks::Tracks, views::query_tab::QueryTab,
+    model::{attempts::Attempts, brief::Expected, tabs::TabId},
+    shell::actions::CheckAnswer,
+    tracks::Tracks,
+    views::query_tab::QueryTab,
 };
 
 /// What ⌘⇧↵ says in a tab that isn't a challenge tab.
 pub const NOT_A_CHALLENGE: &str = "Check answer works in challenge tabs";
 
-/// The tracks, and the sandbox of every open challenge tab.
+/// The tracks, the sandbox of every open challenge tab, and this
+/// session's attempts.
 pub(super) struct Challenges {
     tracks: Tracks,
     sandboxes: BTreeMap<TabId, Sandbox>,
+    attempts: Attempts,
 }
 
 impl Challenges {
@@ -38,6 +46,7 @@ impl Challenges {
         Self {
             tracks,
             sandboxes: BTreeMap::new(),
+            attempts: Attempts::default(),
         }
     }
 }
@@ -151,17 +160,69 @@ impl Workspace {
 
     /// The active challenge's track slug and challenge.
     fn active_challenge_details(&self) -> Option<(String, Challenge)> {
-        let id = self.active_challenge()?;
+        self.details(self.active_challenge()?)
+    }
+
+    /// Challenge `id`'s track slug, and the challenge.
+    fn details(&self, id: &ChallengeId) -> Option<(String, Challenge)> {
         let (track, challenge) = self.challenges.tracks.challenge(id)?;
         Some((track.slug.clone(), challenge.clone()))
     }
 
-    /// Makes `tab` a challenge tab on `sandbox`, with the Check view.
+    /// Makes `tab` a challenge tab on `sandbox`, with the Check view, and
+    /// starts working out its challenge's expected result.
     fn attach(&mut self, tab: TabId, sandbox: Sandbox, cx: &mut Context<Self>) {
+        self.work_out_expectation(&sandbox.challenge, cx);
         self.challenges.sandboxes.insert(tab, sandbox);
         if let Some(view) = self.views.get(&tab) {
             view.update(cx, QueryTab::play_challenge);
         }
+    }
+
+    /// Works out what a right answer to `id` looks like on the background
+    /// executor, unless that has already started.
+    fn work_out_expectation(&mut self, id: &ChallengeId, cx: &mut Context<Self>) {
+        if !self.challenges.tracks.start_expecting(id) {
+            return;
+        }
+        let Some((slug, challenge)) = self.details(id) else {
+            return;
+        };
+        let Ok(template) = self.challenges.tracks.template(&slug) else {
+            self.challenges
+                .tracks
+                .set_expected(id, Expected::Unavailable);
+            return;
+        };
+        let id = id.clone();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_spawn(async move { check::expect(&template, &challenge) })
+                .await;
+            let _ = this.update(cx, |workspace, cx| {
+                workspace.challenges.tracks.set_expected(&id, result.into());
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Counts tab `tab`'s finished check as an attempt at its challenge.
+    pub(super) fn checked(
+        &mut self,
+        tab: TabId,
+        outcome: &Result<Verdict, CheckError>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(id) = self.challenge(tab).cloned() {
+            self.challenges.attempts.record(&id, outcome);
+            cx.notify();
+        }
+    }
+
+    /// This session's attempts.
+    pub fn attempts(&self) -> &Attempts {
+        &self.challenges.attempts
     }
 
     /// The open tab playing challenge `id`.

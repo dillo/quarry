@@ -3,6 +3,8 @@
 //! Nothing here depends on GPUI, so every rule is unit-tested and
 //! mutation-tested like the core crates.
 
+pub mod attempts;
+pub mod brief;
 pub mod closed_tabs;
 pub mod copy;
 pub mod drain;

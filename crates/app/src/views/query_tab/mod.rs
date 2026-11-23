@@ -18,7 +18,10 @@ use gpui_kit::{
         table::TableState,
     },
 };
-use quarry_challenges::run::Stop;
+use quarry_challenges::{
+    check::{CheckError, Verdict},
+    run::Stop,
+};
 use quarry_engine::session::{RunEvent, RunHandle};
 
 use super::{
@@ -41,6 +44,8 @@ pub enum QueryTabEvent {
     Edited,
     /// A copy finished; the note says what it copied.
     Copied(String),
+    /// A check finished with this outcome.
+    Checked(Result<Verdict, CheckError>),
 }
 
 /// What a run was asked to run.

@@ -33,7 +33,7 @@ fn solved(state: &CheckState) -> bool {
 }
 
 /// Writes `sql` in a new First spin tab, checks it with ⌘⇧↵, and waits.
-fn check_first_spin(
+pub fn check_first_spin(
     workspace: &Entity<Workspace>,
     cx: &mut VisualTestContext,
     sql: &str,

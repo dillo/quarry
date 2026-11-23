@@ -11,7 +11,7 @@ use quarry_challenges::{
     track::Challenge,
 };
 
-use super::QueryTab;
+use super::{QueryTab, QueryTabEvent};
 use crate::{model::verdict::CheckState, views::results::CHECK};
 
 impl QueryTab {
@@ -36,6 +36,7 @@ impl QueryTab {
                 )
                 .await;
             let _ = this.update(cx, |tab, cx| {
+                cx.emit(QueryTabEvent::Checked(outcome.clone()));
                 tab.check = CheckState::Done(outcome);
                 cx.notify();
             });
