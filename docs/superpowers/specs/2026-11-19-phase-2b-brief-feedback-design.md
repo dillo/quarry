@@ -107,7 +107,7 @@ These modules are free of GPUI, need 100% line coverage and are mutation-tested.
 - **Layout:**
   - A fourth column with a fixed width, on a frosted panel like the sidebar.
   - `ToggleInspector` is bound to ⌘⌥I and listed as View → Toggle Inspector in the command table, so it also appears in the palette.
-  - Whether the inspector is open is kept in the store's `state` table under `inspector_open`. It is open by default, and no migration is needed.
+  - Whether the inspector is hidden is kept in the store's `state` table under `inspector_hidden`; when it is absent the inspector is shown, and no migration is needed.
 - **Navigation actions:**
   - `PreviousChallenge` (⌘⌥[) and `NextChallenge` (⌘⌥]) appear under Query in the command table, and do nothing outside challenge tabs.
   - They, the brief's buttons and the card's Next challenge all share the palette's open-or-focus path.
@@ -169,7 +169,7 @@ From top to bottom:
 
 - **The expectation fails:** the brief says "Expected result unavailable" and the rest of the brief works. Check answer reports the problem as in 2A.
 - **A track is left out because its content is bad:** Prev/Next and Next up skip over it, because `neighbours` walks only the tracks that loaded.
-- **`inspector_open` can't be read or written:** the inspector is open, and the existing status-bar note about the store applies.
+- **`inspector_hidden` can't be read or written:** the inspector is open, and the existing status-bar note about the store applies.
 
 ## 6. Testing
 
@@ -189,7 +189,7 @@ From top to bottom:
 - **App models:** `attempts`, `brief` and `verdict` at 100% lines and 0 missed mutants.
 - **App (GPUI tests):**
   - the brief appears for a challenge tab and the empty state for a plain tab;
-  - ⌘⌥I toggles the inspector, and `inspector_open` survives a restart;
+  - ⌘⌥I toggles the inspector, and `inspector_hidden` survives a restart;
   - the expectation arrives and fills the brief, and a broken solution shows "unavailable" (with tracks injected);
   - a wrong check shows the checklist and counts an attempt;
   - a solve shows the card and starts the pulse, and a solve under Reduce Motion doesn't start it;
@@ -203,7 +203,7 @@ From top to bottom:
 2. Challenges: `expect`, `Catalog::neighbours` and `Catalog::position`. Add the content test for every expectation.
 3. App: inject `Tracks` into `Workspace`, and cancel superseded checks.
 4. App: `model/attempts` and `model/brief`, and the expectation cache in `Tracks`.
-5. App: `InspectorRegistry`, `BriefView` and `EmptyView`, the fourth column, ⌘⌥I and `inspector_open`.
+5. App: `InspectorRegistry`, `BriefView` and `EmptyView`, the fourth column, ⌘⌥I and `inspector_hidden`.
 6. App: Prev/Next in the brief, and the `PreviousChallenge`/`NextChallenge` actions and commands.
 7. App: the feedback card (`model/verdict` extended, and the Check view rewritten), with Next challenge and Stay here.
 8. ui-kit and app: `motion::PULSE`, `Pulse`, `Role::Pulse` and its contrast test, and the edge glow on a solve.
