@@ -49,6 +49,7 @@ use crate::{
         tabs::{Tab, TabId, TabList},
     },
     shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
+    tracks::Tracks,
 };
 
 /// How often the workspace polls the session: about 30 times a second.
@@ -56,6 +57,17 @@ pub const POLL: Duration = Duration::from_millis(33);
 
 /// Width of the open sidebar.
 pub const SIDEBAR_WIDTH: f32 = 240.0;
+
+/// What a workspace runs on: a session for plain tabs, named in the
+/// status bar, and the challenge tracks.
+pub struct Databases {
+    /// The session plain tabs share.
+    pub session: Session,
+    /// What the status bar calls it.
+    pub name: String,
+    /// The challenge tracks.
+    pub tracks: Tracks,
+}
 
 /// The main window's content.
 ///
@@ -87,20 +99,18 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    /// A workspace on `session`, labelled `database` in the status bar,
-    /// with the tabs saved in `saved`.
+    /// A workspace on `databases`, with the tabs saved in `saved`.
     pub fn new(
-        session: Session,
-        database: &str,
+        databases: Databases,
         saved: SavedTabs,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let (store, drafts, problem) = saved.open();
-        let challenges = Challenges::embedded();
+        let challenges = Challenges::new(databases.tracks);
         let mut workspace = Self {
-            session,
-            database: database.to_owned(),
+            session: databases.session,
+            database: databases.name,
             tabs: restored_tabs(&drafts, &challenges),
             views: BTreeMap::new(),
             challenges,

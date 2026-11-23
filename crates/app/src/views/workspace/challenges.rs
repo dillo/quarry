@@ -33,10 +33,10 @@ impl Challenges {
         Some(challenge.title.clone())
     }
 
-    /// The embedded tracks, with no challenge tab open.
-    pub(super) fn embedded() -> Self {
+    /// `tracks`, with no challenge tab open.
+    pub(super) fn new(tracks: Tracks) -> Self {
         Self {
-            tracks: Tracks::embedded(),
+            tracks,
             sandboxes: BTreeMap::new(),
         }
     }

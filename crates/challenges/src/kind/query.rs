@@ -6,7 +6,7 @@ use quarry_engine::{result::QueryResult, sqlite::SqliteDriver};
 use super::{Answers, ChallengeKind};
 use crate::{
     check::CheckError,
-    run::{self, Limits, RunError},
+    run::{RunError, Runner},
     sandbox::Template,
     track::Challenge,
 };
@@ -23,9 +23,10 @@ impl ChallengeKind for Query {
         &self,
         challenge: &Challenge,
         template: &Template,
-        limits: Limits,
+        runner: &Runner,
     ) -> Result<QueryResult, CheckError> {
-        run::run(&mut copy(template)?, &challenge.solution, limits)
+        runner
+            .run(&mut copy(template)?, &challenge.solution)
             .map_err(|error| CheckError::Content(describe(&error)))
     }
 
@@ -34,10 +35,12 @@ impl ChallengeKind for Query {
         challenge: &Challenge,
         sql: &str,
         template: &Template,
-        limits: Limits,
+        runner: &Runner,
     ) -> Result<Answers, CheckError> {
-        let expected = self.expected(challenge, template, limits)?;
-        let got = run::run(&mut copy(template)?, sql, limits).map_err(CheckError::from)?;
+        let expected = self.expected(challenge, template, runner)?;
+        let got = runner
+            .run(&mut copy(template)?, sql)
+            .map_err(CheckError::from)?;
         Ok(Answers { expected, got })
     }
 }
@@ -64,7 +67,7 @@ mod tests {
     use crate::{
         check::CheckError,
         kind::ChallengeKind,
-        run::{LIMITS, Limits, RunError},
+        run::{LIMITS, Limits, RunError, Runner},
         sandbox::Template,
         track::Challenge,
     };
@@ -98,7 +101,7 @@ mod tests {
                 &challenge("SELECT count(*) AS n FROM t"),
                 sql,
                 &template().unwrap(),
-                LIMITS,
+                &Runner::new(LIMITS),
             )
             .unwrap();
         assert_eq!(answers.expected.rows, [[Value::Int(2)]]);
@@ -109,13 +112,23 @@ mod tests {
     fn the_users_errors_keep_their_kind() {
         let template = template().unwrap();
         let solution = challenge("SELECT n FROM t");
-        let failed = Query.answers(&solution, "SELECT x FROM t", &template, LIMITS);
+        let failed = Query.answers(
+            &solution,
+            "SELECT x FROM t",
+            &template,
+            &Runner::new(LIMITS),
+        );
         assert_eq!(failed, Err(CheckError::Sql("no such column: x".to_owned())));
         let tight = Limits {
             rows: 1,
             time: LIMITS.time,
         };
-        let too_many = Query.answers(&challenge("SELECT 1"), "SELECT n FROM t", &template, tight);
+        let too_many = Query.answers(
+            &challenge("SELECT 1"),
+            "SELECT n FROM t",
+            &template,
+            &Runner::new(tight),
+        );
         assert_eq!(too_many, Err(CheckError::TooManyRows));
     }
 
@@ -125,7 +138,7 @@ mod tests {
             &challenge("SELECT nope FROM t"),
             "SELECT 1",
             &template().unwrap(),
-            LIMITS,
+            &Runner::new(LIMITS),
         );
         assert_eq!(
             broken,

@@ -134,3 +134,24 @@ fn checking_a_plain_tab_says_it_needs_a_challenge(cx: &mut TestAppContext) {
     assert_eq!(note.as_deref(), Some(NOT_A_CHALLENGE));
     assert_eq!(state(&workspace, cx), CheckState::Idle);
 }
+
+#[gpui_kit::test]
+fn a_newer_check_stops_the_older_one(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    check_first_spin(&workspace, cx, "SELECT title FROM albums");
+    let stop = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| {
+            workspace
+                .read(cx)
+                .active_tab()
+                .read(cx)
+                .check_stop()
+                .clone()
+        })
+    };
+    let first = stop(cx);
+    assert!(!first.is_stopped());
+    cx.simulate_keystrokes("cmd-shift-enter");
+    assert!(first.is_stopped());
+    assert!(!stop(cx).is_stopped());
+}

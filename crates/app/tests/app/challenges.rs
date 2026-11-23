@@ -8,12 +8,12 @@ use quarry::{model::statements::Phase, sample, views::workspace::Workspace};
 use quarry_challenges::catalog::ChallengeId;
 use quarry_engine::value::Value;
 use quarry_store::{
-    drafts::{Draft, DraftStore, Drafts},
+    drafts::{Draft, DraftStore, Drafts, Forgetful},
     error::StoreError,
     sqlite::SqliteStore,
 };
 
-use super::support::{install, open, open_with, phase, run, settle, write};
+use super::support::{broken_tracks, install, open, open_on, open_with, phase, run, settle, write};
 
 fn first_spin() -> ChallengeId {
     ChallengeId::new("vinyl-vault", "first-spin")
@@ -65,6 +65,18 @@ fn a_challenge_opens_in_a_tab_titled_after_it_with_its_skeleton(cx: &mut TestApp
     assert_eq!(text(&workspace, cx), "SELECT ___, ___\nFROM ___;");
     let active = cx.update(|_, cx| workspace.read(cx).active_challenge().cloned());
     assert_eq!(active, Some(first_spin()));
+}
+
+#[gpui_kit::test]
+fn a_challenge_whose_database_cant_be_built_opens_nothing(cx: &mut TestAppContext) {
+    install(cx);
+    let tracks = broken_tracks("CREATE TABLE", "SELECT 1");
+    let (workspace, cx) =
+        open_on(cx, Arc::new(Forgetful), tracks).expect("the sample database opens");
+    open_challenge(&workspace, cx, &ChallengeId::new("broken", "a"));
+    assert_eq!(titles(&workspace, cx), ["Query 1"]);
+    let note = cx.update(|_, cx| workspace.read(cx).note().map(str::to_owned));
+    assert!(note.is_some_and(|note| note.starts_with("Couldn't open Cracked: ")));
 }
 
 #[gpui_kit::test]

@@ -6,7 +6,7 @@ use quarry_engine::error::EngineError;
 use crate::{
     kind::{ChallengeKind, KindRegistry},
     rules::{self, CheckFailure, Comparison, Grading},
-    run::{LIMITS, Limits, RunError},
+    run::{LIMITS, RunError, Runner},
     sandbox::Template,
     track::Challenge,
 };
@@ -81,21 +81,21 @@ impl From<RunError> for CheckError {
 /// Returns a [`CheckError`] when the answer or the solution gives no
 /// result.
 pub fn check(template: &Template, challenge: &Challenge, sql: &str) -> Result<Verdict, CheckError> {
-    check_within(template, challenge, sql, LIMITS)
+    check_with(template, challenge, sql, &Runner::new(LIMITS))
 }
 
-/// [`check`] within `limits`.
+/// [`check`], running both sides with `runner`.
 ///
 /// # Errors
 /// As for [`check`].
-pub fn check_within(
+pub fn check_with(
     template: &Template,
     challenge: &Challenge,
     sql: &str,
-    limits: Limits,
+    runner: &Runner,
 ) -> Result<Verdict, CheckError> {
     let kinds = KindRegistry::standard();
-    let answers = kind_of(&kinds, challenge)?.answers(challenge, sql, template, limits)?;
+    let answers = kind_of(&kinds, challenge)?.answers(challenge, sql, template, runner)?;
     let comparison = Comparison {
         expected: &answers.expected,
         got: &answers.got,
@@ -122,7 +122,8 @@ pub struct Expectation {
 /// [`CheckError::Sandbox`] when no copy can be made.
 pub fn expect(template: &Template, challenge: &Challenge) -> Result<Expectation, CheckError> {
     let kinds = KindRegistry::standard();
-    let expected = kind_of(&kinds, challenge)?.expected(challenge, template, LIMITS)?;
+    let expected =
+        kind_of(&kinds, challenge)?.expected(challenge, template, &Runner::new(LIMITS))?;
     Ok(Expectation {
         columns: expected
             .columns

@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use quarry_engine::error::EngineError;
 
-use super::{CheckError, Expectation, Verdict, check, check_within, expect};
+use super::{CheckError, Expectation, Verdict, check, check_with, expect};
 use crate::{
     rules::CheckFailure,
-    run::{LIMITS, Limits, RunError},
+    run::{LIMITS, Limits, RunError, Runner, Stop},
     sandbox::Template,
     track::Challenge,
 };
@@ -75,7 +75,12 @@ fn the_limits_apply_to_the_answer() {
     };
     let challenge = challenge("SELECT 1", false);
     assert_eq!(
-        check_within(&template().unwrap(), &challenge, endless, limits),
+        check_with(
+            &template().unwrap(),
+            &challenge,
+            endless,
+            &Runner::new(limits)
+        ),
         Err(CheckError::TimedOut)
     );
 }
@@ -122,4 +127,20 @@ fn a_broken_solution_has_no_expectation() {
         expect(&template().unwrap(), &mutation),
         Err(CheckError::Content("unknown kind \"mutation\"".to_owned()))
     );
+}
+
+#[test]
+fn a_stopped_check_ends_without_waiting_for_its_limits() {
+    let endless =
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT max(x) FROM n";
+    let stop = Stop::default();
+    stop.stop();
+    let runner = Runner::stoppable(LIMITS, stop);
+    let started = std::time::Instant::now();
+    let challenge = challenge("SELECT 1", false);
+    assert_eq!(
+        check_with(&template().unwrap(), &challenge, endless, &runner),
+        Err(CheckError::TimedOut)
+    );
+    assert!(started.elapsed() < LIMITS.time);
 }

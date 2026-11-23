@@ -18,6 +18,7 @@ use gpui_kit::{
         table::TableState,
     },
 };
+use quarry_challenges::run::Stop;
 use quarry_engine::session::{RunEvent, RunHandle};
 
 use super::{
@@ -64,6 +65,7 @@ pub struct QueryTab {
     planning: Option<Task<()>>,
     check: CheckState,
     checking: Option<Task<()>>,
+    check_stop: Stop,
     _edits: Subscription,
 }
 
@@ -94,6 +96,7 @@ impl QueryTab {
             planning: None,
             check: CheckState::Idle,
             checking: None,
+            check_stop: Stop::default(),
             _edits: edits,
         }
     }
