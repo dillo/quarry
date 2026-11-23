@@ -38,6 +38,7 @@ pub use self::{
 };
 use super::{
     editor,
+    inspector::InspectorRegistry,
     palette::{PaletteSourceRegistry, dialog::Palette},
     query_tab::QueryTab,
     schema::SchemaTree,
@@ -48,7 +49,7 @@ use crate::{
         statements::RunOutput,
         tabs::{Tab, TabId, TabList},
     },
-    shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
+    shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleInspector, ToggleSidebar},
     tracks::Tracks,
 };
 
@@ -57,6 +58,9 @@ pub const POLL: Duration = Duration::from_millis(33);
 
 /// Width of the open sidebar.
 pub const SIDEBAR_WIDTH: f32 = 240.0;
+
+/// Width of the open inspector.
+pub const INSPECTOR_WIDTH: f32 = 280.0;
 
 /// What a workspace runs on: a session for plain tabs, named in the
 /// status bar, and the challenge tracks.
@@ -87,6 +91,8 @@ pub struct Workspace {
     saves: Arc<Mutex<SaveOrder>>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
+    inspector_open: bool,
+    inspector: Rc<InspectorRegistry>,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
     schema_read: Option<Task<()>>,
@@ -122,6 +128,8 @@ impl Workspace {
             saves: Arc::default(),
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
+            inspector_open: !drafts.inspector_hidden,
+            inspector: Rc::new(InspectorRegistry::standard()),
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             schema_read: None,
@@ -188,6 +196,18 @@ impl Workspace {
 
     fn toggle_sidebar(&mut self, _: &ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
         self.sidebar_open = !self.sidebar_open;
+        cx.notify();
+    }
+
+    /// Whether the inspector is shown.
+    pub fn inspector_open(&self) -> bool {
+        self.inspector_open
+    }
+
+    /// Shows or hides the inspector, and saves the choice.
+    fn toggle_inspector(&mut self, _: &ToggleInspector, _: &mut Window, cx: &mut Context<Self>) {
+        self.inspector_open = !self.inspector_open;
+        self.schedule_save(cx);
         cx.notify();
     }
 

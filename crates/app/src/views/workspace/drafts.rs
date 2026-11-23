@@ -85,6 +85,7 @@ impl Workspace {
             tabs,
             active: self.tabs.active(),
             closed: self.closed.clone(),
+            inspector_hidden: !self.inspector_open,
         }
     }
 

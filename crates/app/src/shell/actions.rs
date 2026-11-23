@@ -29,6 +29,8 @@ actions!(
         PreviousTab,
         /// Shows or hides the sidebar.
         ToggleSidebar,
+        /// Shows or hides the inspector.
+        ToggleInspector,
         /// Moves keyboard focus to the sidebar's first table.
         FocusSidebar,
         /// Moves keyboard focus to the editor.
@@ -78,6 +80,7 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("cmd-}", NextTab, None),
         KeyBinding::new("cmd-{", PreviousTab, None),
         KeyBinding::new("cmd-\\", ToggleSidebar, None),
+        KeyBinding::new("cmd-alt-i", ToggleInspector, None),
         KeyBinding::new("cmd-1", FocusSidebar, None),
         KeyBinding::new("cmd-2", FocusEditor, None),
         KeyBinding::new("cmd-shift-t", CycleTheme, None),
@@ -125,6 +128,7 @@ pub fn commands() -> Vec<Command> {
         command("Next Tab", || Box::new(NextTab), "View"),
         command("Previous Tab", || Box::new(PreviousTab), "View"),
         command("Toggle Sidebar", || Box::new(ToggleSidebar), "View"),
+        command("Toggle Inspector", || Box::new(ToggleInspector), "View"),
         command("Focus Sidebar", || Box::new(FocusSidebar), "View"),
         command("Focus Editor", || Box::new(FocusEditor), "View"),
         command("Cycle Theme", || Box::new(CycleTheme), "View"),

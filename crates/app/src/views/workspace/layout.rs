@@ -16,7 +16,7 @@ use quarry_ui_kit::{
     tokens::{chrome, space, text},
 };
 
-use super::{SIDEBAR_WIDTH, Workspace};
+use super::{INSPECTOR_WIDTH, SIDEBAR_WIDTH, Workspace};
 use crate::{
     model::{format, status},
     shell::actions::WORKSPACE,
@@ -42,6 +42,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::next_tab))
             .on_action(cx.listener(Self::previous_tab))
             .on_action(cx.listener(Self::toggle_sidebar))
+            .on_action(cx.listener(Self::toggle_inspector))
             .on_action(cx.listener(Self::focus_sidebar))
             .on_action(cx.listener(Self::focus_editor))
             .on_action(cx.listener(Self::cycle_theme))
@@ -55,6 +56,7 @@ impl Render for Workspace {
             .text_color(colors.get(Role::Text))
             .when(self.sidebar_open, |root| root.child(self.sidebar(cx)))
             .child(self.center(cx))
+            .when(self.inspector_open, |root| root.child(self.inspector(cx)))
     }
 }
 
@@ -80,6 +82,23 @@ impl Workspace {
                     .child("TABLES"),
             )
             .child(self.schema.clone())
+            .into_any_element()
+    }
+
+    /// The right column: the first inspector view that applies.
+    fn inspector(&self, cx: &Context<Self>) -> AnyElement {
+        let colors = Aurora::colors(cx);
+        let view = self.inspector.pick(self);
+        sidebar_surface(&colors)
+            .id("inspector")
+            .w(px(INSPECTOR_WIDTH))
+            .flex_none()
+            .h_full()
+            .pt(px(chrome::TITLEBAR_HEIGHT))
+            .px(px(space::MD))
+            .pb(px(space::MD))
+            .children(view.map(|view| view.render(self, cx)))
+            .test_support()
             .into_any_element()
     }
 

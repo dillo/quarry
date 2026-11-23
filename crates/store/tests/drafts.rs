@@ -33,6 +33,7 @@ fn sample() -> Drafts {
             draft(0, "Notes", "-- newest"),
             draft(0, "Query 4", "SELECT 4;"),
         ],
+        inspector_hidden: true,
     }
 }
 
@@ -57,6 +58,7 @@ fn a_save_replaces_the_previous_one() {
         tabs: vec![draft(9, "Query 5", "")],
         active: 0,
         closed: Vec::new(),
+        inspector_hidden: false,
     };
     store.save(&fewer).unwrap();
     assert_eq!(store.load().unwrap(), fewer);
@@ -165,6 +167,7 @@ fn a_version_one_file_is_upgraded_and_keeps_its_tabs() {
             tabs: vec![draft(5, "Query 1", "SELECT 1;")],
             active: 0,
             closed: Vec::new(),
+            inspector_hidden: false,
         }
     );
 }
@@ -179,6 +182,7 @@ fn challenge_ids_round_trip_through_tabs_and_closed_tabs() {
         ],
         active: 0,
         closed: vec![challenge_draft(0, "Every genre", "vinyl-vault/every-genre")],
+        inspector_hidden: false,
     };
     store.save(&drafts).unwrap();
     assert_eq!(store.load().unwrap(), drafts);
@@ -214,4 +218,20 @@ fn keeps_the_first_tab_active() {
     drafts.active = 0;
     store.save(&drafts).unwrap();
     assert_eq!(store.load().unwrap().active, 0);
+}
+
+#[test]
+fn a_state_value_that_isnt_a_number_is_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("quarry.db");
+    SqliteStore::open(&path).unwrap().save(&sample()).unwrap();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute(
+            "UPDATE state SET value = 'hidden' WHERE key = 'inspector_hidden'",
+            [],
+        )
+        .unwrap();
+    let loaded = SqliteStore::open(&path).unwrap().load();
+    assert!(matches!(loaded, Err(StoreError::Sql(_))), "{loaded:?}");
 }

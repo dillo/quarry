@@ -163,6 +163,7 @@ fn store_with(tabs: Vec<Draft>) -> Result<Arc<SqliteStore>, StoreError> {
         active: tabs.len() - 1,
         tabs,
         closed: Vec::new(),
+        inspector_hidden: false,
     };
     store.save(&drafts)?;
     Ok(store)

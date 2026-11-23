@@ -95,12 +95,27 @@ fn load_closed(connection: &Connection) -> Result<Vec<Draft>, StoreError> {
 
 /// The saved active index, or 0 when none was saved.
 fn load_active(connection: &Connection) -> Result<usize, StoreError> {
-    let active: Option<i64> = connection
-        .query_row("SELECT value FROM state WHERE key = 'active'", [], |row| {
+    let active = load_state(connection, "active")?;
+    Ok(usize::try_from(active.unwrap_or(0)).unwrap_or(0))
+}
+
+/// The value saved under `key` in `state`, if one was.
+fn load_state(connection: &Connection, key: &str) -> Result<Option<i64>, StoreError> {
+    let value = connection
+        .query_row("SELECT value FROM state WHERE key = ?1", [key], |row| {
             row.get(0)
         })
         .optional()?;
-    Ok(usize::try_from(active.unwrap_or(0)).unwrap_or(0))
+    Ok(value)
+}
+
+/// Saves `value` under `key` in `state`.
+fn save_state(connection: &Connection, key: &str, value: i64) -> Result<(), StoreError> {
+    connection.execute(
+        "INSERT OR REPLACE INTO state (key, value) VALUES (?1, ?2)",
+        params![key, value],
+    )?;
+    Ok(())
 }
 
 /// Replaces the open tabs.
@@ -144,6 +159,7 @@ impl DraftStore for SqliteStore {
             active: active.min(tabs.len().saturating_sub(1)),
             tabs,
             closed: load_closed(&connection)?,
+            inspector_hidden: load_state(&connection, "inspector_hidden")? == Some(1),
         })
     }
 
@@ -152,9 +168,11 @@ impl DraftStore for SqliteStore {
         let transaction = connection.transaction()?;
         save_tabs(&transaction, &drafts.tabs)?;
         save_closed(&transaction, &drafts.closed)?;
-        transaction.execute(
-            "INSERT OR REPLACE INTO state (key, value) VALUES ('active', ?1)",
-            params![index(drafts.active)],
+        save_state(&transaction, "active", index(drafts.active))?;
+        save_state(
+            &transaction,
+            "inspector_hidden",
+            i64::from(drafts.inspector_hidden),
         )?;
         transaction.commit()?;
         Ok(())

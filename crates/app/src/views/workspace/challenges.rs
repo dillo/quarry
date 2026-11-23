@@ -15,7 +15,11 @@ use quarry_store::drafts::Draft;
 
 use super::Workspace;
 use crate::{
-    model::{attempts::Attempts, brief::Expected, tabs::TabId},
+    model::{
+        attempts::Attempts,
+        brief::{self, Brief, Expected},
+        tabs::TabId,
+    },
     shell::actions::CheckAnswer,
     tracks::Tracks,
     views::query_tab::QueryTab,
@@ -218,6 +222,17 @@ impl Workspace {
             self.challenges.attempts.record(&id, outcome);
             cx.notify();
         }
+    }
+
+    /// The active challenge's brief, if the active tab is a challenge tab.
+    pub fn active_brief(&self) -> Option<Brief> {
+        let id = self.active_challenge()?;
+        let tracks = &self.challenges.tracks;
+        let (track, challenge) = tracks.challenge(id)?;
+        let position = tracks.catalog().position(id)?;
+        let expected = tracks.expected(id);
+        let tally = self.challenges.attempts.of(id);
+        Some(brief::brief(track, challenge, position, &expected, tally))
     }
 
     /// This session's attempts.
