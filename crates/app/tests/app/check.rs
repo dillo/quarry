@@ -174,6 +174,8 @@ fn a_wrong_answer_shows_every_rule_on_the_card(cx: &mut TestAppContext) {
     let card = card(&workspace, cx).expect("a card");
     let marks: Vec<Mark> = card.lines.iter().map(|line| line.mark).collect();
     assert_eq!(marks, [Mark::Pass, Mark::Fail, Mark::Skip, Mark::Skip]);
+    let order = card.lines.last().map(|line| line.text.as_str());
+    assert_eq!(order, Some("Order doesn't matter here"));
     assert_eq!(card.footer, None);
     assert!(!drawn(cx, results::check::NEXT_CHALLENGE));
 }

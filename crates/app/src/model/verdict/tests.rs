@@ -121,21 +121,36 @@ fn every_rule_has_a_name() {
 }
 
 #[test]
-fn a_rule_that_doesnt_apply_says_so() {
-    let unordered = graded(vec![outcome(
-        "contents",
-        RuleStatus::Failed(CheckFailure::Contents {
-            missing: 1,
-            unexpected: 0,
-        }),
-    )]);
-    assert_eq!(unordered.lines[0].mark, Mark::Fail);
+fn a_rule_that_doesnt_apply_says_so_even_after_a_failure() {
+    let unordered = graded(vec![
+        outcome("columns", RuleStatus::Passed),
+        outcome("row count", RuleStatus::Passed),
+        outcome(
+            "contents",
+            RuleStatus::Failed(CheckFailure::Contents {
+                missing: 1,
+                unexpected: 0,
+            }),
+        ),
+        outcome("order", RuleStatus::NotApplicable),
+    ]);
+    assert_eq!(
+        unordered.lines[3],
+        Line {
+            mark: Mark::Skip,
+            text: "Order doesn't matter here".to_owned()
+        }
+    );
+}
+
+#[test]
+fn a_rule_not_checked_without_a_failure_just_says_so() {
     let line = super::line(&outcome("order", RuleStatus::NotChecked), None);
     assert_eq!(
         line,
         Line {
             mark: Mark::Skip,
-            text: "Order doesn't matter here".to_owned()
+            text: "Order not checked".to_owned()
         }
     );
 }

@@ -73,7 +73,7 @@ pub trait CheckRule {
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure>;
 
     /// Whether this rule has anything to check in `comparison`; a rule that
-    /// doesn't apply is reported as not checked.
+    /// doesn't apply is reported as not applicable.
     fn applies(&self, comparison: &Comparison<'_>) -> bool;
 }
 
@@ -84,8 +84,10 @@ pub enum RuleStatus {
     Passed,
     /// The rule found this wrong.
     Failed(CheckFailure),
-    /// An earlier rule failed, or this one doesn't apply.
+    /// An earlier rule failed, so this one wasn't run.
     NotChecked,
+    /// The rule doesn't apply to this challenge.
+    NotApplicable,
 }
 
 /// One rule's outcome.
@@ -135,14 +137,16 @@ pub fn pipeline() -> Vec<Box<dyn CheckRule>> {
     ]
 }
 
-/// Runs the pipeline on `comparison`. Every rule after the first failure,
-/// and every rule that doesn't apply, is not checked.
+/// Runs the pipeline on `comparison`. A rule that doesn't apply is not
+/// applicable; every other rule after the first failure is not checked.
 pub fn grade(comparison: &Comparison<'_>) -> Grading {
     let mut failed = false;
     let outcomes = pipeline()
         .iter()
         .map(|rule| {
-            let status = if failed || !rule.applies(comparison) {
+            let status = if !rule.applies(comparison) {
+                RuleStatus::NotApplicable
+            } else if failed {
                 RuleStatus::NotChecked
             } else {
                 rule.check(comparison)
@@ -249,7 +253,20 @@ mod tests {
         );
         let unordered = statuses(&[1, 2], &[2, 1], &["n"], false);
         assert_eq!(unordered[..3], [const { RuleStatus::Passed }; 3]);
-        assert_eq!(unordered[3], RuleStatus::NotChecked);
+        assert_eq!(unordered[3], RuleStatus::NotApplicable);
+    }
+
+    #[test]
+    fn an_unordered_challenge_never_applies_order() {
+        let early = statuses(&[1, 2], &[1], &["n"], false);
+        assert_eq!(early[2], RuleStatus::NotChecked);
+        assert_eq!(early[3], RuleStatus::NotApplicable);
+    }
+
+    #[test]
+    fn an_ordered_challenge_does_not_check_order_after_a_failure() {
+        let early = statuses(&[1, 2], &[1], &["n"], true);
+        assert_eq!(early[3], RuleStatus::NotChecked);
     }
 
     #[test]

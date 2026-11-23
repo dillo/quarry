@@ -156,22 +156,26 @@ fn wrong(grading: &Grading) -> Card {
 /// `outcome`'s line; `blocker` is the rule that failed, if one did.
 fn line(outcome: &RuleOutcome, blocker: Option<&str>) -> Line {
     let name = rule_name(outcome.rule);
-    let (mark, text) = match (&outcome.status, blocker) {
-        (RuleStatus::Passed, _) => (Mark::Pass, name.agrees()),
-        (RuleStatus::Failed(failure), _) => (Mark::Fail, difference(failure)),
-        (RuleStatus::NotChecked, Some(blocker)) => (
-            Mark::Skip,
-            format!(
-                "{} not checked until {}",
-                name.label,
-                rule_name(blocker).condition()
-            ),
-        ),
-        (RuleStatus::NotChecked, None) => {
-            (Mark::Skip, format!("{} doesn't matter here", name.label))
-        }
+    let (mark, text) = match &outcome.status {
+        RuleStatus::Passed => (Mark::Pass, name.agrees()),
+        RuleStatus::Failed(failure) => (Mark::Fail, difference(failure)),
+        RuleStatus::NotChecked => (Mark::Skip, not_checked(&name, blocker)),
+        RuleStatus::NotApplicable => (Mark::Skip, format!("{} doesn't matter here", name.label)),
     };
     Line { mark, text }
+}
+
+/// "Rows not checked until the columns match"; without a known blocker,
+/// just "Rows not checked".
+fn not_checked(name: &RuleName, blocker: Option<&str>) -> String {
+    match blocker {
+        Some(blocker) => format!(
+            "{} not checked until {}",
+            name.label,
+            rule_name(blocker).condition()
+        ),
+        None => format!("{} not checked", name.label),
+    }
 }
 
 /// How a rule is named on the card.
