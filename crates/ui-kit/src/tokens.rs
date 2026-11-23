@@ -67,4 +67,6 @@ pub mod motion {
     pub const FAST: Duration = Duration::from_millis(150);
     /// The theme cross-fade.
     pub const THEME: Duration = Duration::from_millis(250);
+    /// The aurora pulse on a solved challenge.
+    pub const PULSE: Duration = Duration::from_millis(600);
 }

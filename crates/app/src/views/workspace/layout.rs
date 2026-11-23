@@ -3,12 +3,12 @@
 use std::time::Instant;
 
 use gpui_kit::{
-    AnyElement, Context, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
-    StatefulInteractiveElement, Styled, TestSupportExt, Window, component::tooltip::Tooltip, div,
-    prelude::FluentBuilder, px,
+    AnyElement, BoxShadow, Context, InteractiveElement, IntoElement, ParentElement, Render,
+    SharedString, StatefulInteractiveElement, Styled, TestSupportExt, Window,
+    component::tooltip::Tooltip, div, point, prelude::FluentBuilder, px,
 };
 use quarry_ui_kit::{
-    Aurora, Role,
+    Aurora, Colors, Pulse, Role,
     components::{
         status_bar::StatusBar,
         surface::{sidebar_surface, window_background},
@@ -24,9 +24,8 @@ use crate::{
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if Aurora::is_transitioning(cx) {
-            window.request_animation_frame();
-        }
+        let now = Instant::now();
+        let pulsing = self.animate(now, window, cx);
         let colors = Aurora::colors(cx);
         div()
             .id("workspace")
@@ -53,16 +52,50 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::copy_json))
             .on_action(cx.listener(Self::open_palette))
             .size_full()
+            .relative()
             .flex()
             .bg(window_background(&colors))
             .text_color(colors.get(Role::Text))
             .when(self.sidebar_open, |root| root.child(self.sidebar(cx)))
             .child(self.center(cx))
             .when(self.inspector_open, |root| root.child(self.inspector(cx)))
+            .children(pulsing.map(|pulse| glow(pulse.opacity(now), &colors)))
     }
 }
 
+/// The aurora pulse: teal light glowing in from the window's edges, at
+/// `opacity` of its peak. It has no hitbox, so clicks pass through.
+fn glow(opacity: f32, colors: &Colors) -> AnyElement {
+    div()
+        .absolute()
+        .inset_0()
+        .shadow(vec![BoxShadow {
+            color: colors.get(Role::Pulse).opacity(opacity * GLOW_STRENGTH),
+            offset: point(px(0.), px(0.)),
+            blur_radius: px(GLOW_BLUR),
+            spread_radius: px(0.),
+            inset: true,
+        }])
+        .into_any_element()
+}
+
+/// How far the glow reaches into the window.
+const GLOW_BLUR: f32 = 64.0;
+
+/// The glow's alpha at its peak.
+const GLOW_STRENGTH: f32 = 0.6;
+
 impl Workspace {
+    /// The pulse still running at `now`. While it or the theme's
+    /// cross-fade runs, the window keeps drawing frames.
+    fn animate(&self, now: Instant, window: &mut Window, cx: &Context<Self>) -> Option<Pulse> {
+        let pulsing = self.pulse.filter(|pulse| !pulse.is_done(now));
+        if Aurora::is_transitioning(cx) || pulsing.is_some() {
+            window.request_animation_frame();
+        }
+        pulsing
+    }
+
     fn sidebar(&self, cx: &Context<Self>) -> AnyElement {
         let colors = Aurora::colors(cx);
         sidebar_surface(&colors)

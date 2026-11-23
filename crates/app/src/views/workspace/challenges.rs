@@ -2,7 +2,7 @@
 //! on a fresh copy of its track's database. Plain tabs share the sample
 //! database.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Instant};
 
 use gpui_kit::{AppContext, Context, Window};
 use quarry_challenges::{
@@ -12,6 +12,7 @@ use quarry_challenges::{
 };
 use quarry_engine::session::Session;
 use quarry_store::drafts::Draft;
+use quarry_ui_kit::{Pulse, tokens::motion};
 
 use super::Workspace;
 use crate::{
@@ -224,11 +225,26 @@ impl Workspace {
             return;
         };
         self.challenges.attempts.record(&id, outcome);
+        if outcome.as_ref().is_ok_and(Verdict::is_solved) {
+            self.start_pulse(cx);
+        }
         let solve = self.solve(&id);
         if let Some(view) = self.views.get(&tab) {
             view.update(cx, |tab, cx| tab.set_solve(solve, cx));
         }
         cx.notify();
+    }
+
+    /// Starts the aurora pulse, unless the system asks for reduced motion.
+    fn start_pulse(&mut self, cx: &mut Context<Self>) {
+        if !cx.reduce_motion() {
+            self.pulse = Some(Pulse::new(Instant::now(), motion::PULSE));
+        }
+    }
+
+    /// The latest aurora pulse, if a solve started one.
+    pub fn pulse(&self) -> Option<Pulse> {
+        self.pulse
     }
 
     /// What the card needs to know about challenge `id`.

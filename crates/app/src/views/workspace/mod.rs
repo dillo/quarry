@@ -27,7 +27,7 @@ use gpui_kit::{
 };
 use quarry_engine::session::Session;
 use quarry_store::drafts::{Draft, DraftStore, Drafts};
-use quarry_ui_kit::Aurora;
+use quarry_ui_kit::{Aurora, Pulse};
 
 use self::challenges::Challenges;
 pub use self::{
@@ -93,6 +93,7 @@ pub struct Workspace {
     sidebar_open: bool,
     inspector_open: bool,
     inspector: Rc<InspectorRegistry>,
+    pulse: Option<Pulse>,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
     schema_read: Option<Task<()>>,
@@ -130,6 +131,7 @@ impl Workspace {
             sidebar_open: true,
             inspector_open: !drafts.inspector_hidden,
             inspector: Rc::new(InspectorRegistry::standard()),
+            pulse: None,
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             schema_read: None,

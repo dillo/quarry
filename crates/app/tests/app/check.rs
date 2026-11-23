@@ -226,3 +226,26 @@ fn the_last_challenge_has_no_next(cx: &mut TestAppContext) {
         Some(Footer::Last)
     );
 }
+
+fn pulsed(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> bool {
+    cx.update(|_, cx| workspace.read(cx).pulse().is_some())
+}
+
+#[gpui_kit::test]
+fn a_solve_sets_off_the_aurora_pulse_and_a_wrong_answer_doesnt(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    check_first_spin(&workspace, cx, "SELECT title FROM albums");
+    assert!(!pulsed(&workspace, cx));
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
+    assert!(pulsed(&workspace, cx));
+}
+
+#[gpui_kit::test]
+fn reduced_motion_solves_without_a_pulse(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
+    assert!(!pulsed(&workspace, cx));
+    let card = card(&workspace, cx).expect("a card");
+    assert_eq!(card.headline, "First spin: solved");
+}
