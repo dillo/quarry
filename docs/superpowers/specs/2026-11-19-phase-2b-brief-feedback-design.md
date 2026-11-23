@@ -59,10 +59,10 @@ In addition:
 
 **The full pipeline report.**
 - `rules::RuleOutcome { rule: &'static str, status: RuleStatus }`, where `rule` is the `CheckRule::id()`.
-- `RuleStatus` is `Passed`, `Failed(CheckFailure)` or `NotChecked`.
+- `RuleStatus` is `Passed`, `Failed(CheckFailure)`, `NotChecked` or `NotApplicable`.
 - `rules::grade(&Comparison) -> Grading` runs the pipeline in order. `Grading` wraps `Vec<RuleOutcome>`.
-  - Every rule after the first failure is `NotChecked`.
-  - `Order` is `NotChecked` when `ordered = false`, even on a solve.
+  - Every rule after the first failure is `NotChecked`, unless it doesn't apply.
+  - A rule whose `applies` is false is `NotApplicable`: `Order` when `ordered = false`, even on a solve or after a failure.
   - `Grading::failure()` returns the first `Failed`, if there is one.
 - `first_failure` is removed; `Grading::failure()` replaces it.
 - `Verdict` becomes `Solved(Grading)` or `Wrong(Grading)`.
@@ -176,7 +176,7 @@ From top to bottom:
 - **`challenges`:**
   - `grade` for a failure at each rule, with the statuses before and after it;
   - all `Passed` on a solve;
-  - `Order` is `NotChecked` when not ordered;
+  - `Order` is `NotApplicable` when not ordered;
   - `Grading::failure`;
   - `expect` returns the solution's columns and row count, and `Content` for a broken solution;
   - `neighbours` at the start, middle and end of a track, across tracks, and at both ends of the catalog;
