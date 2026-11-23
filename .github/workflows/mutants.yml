@@ -14,10 +14,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  mutants:
-    name: mutants
+  # The full run splits the mutants into four shards that run in parallel, each
+  # gated on its own; a pull request tests only its diff, in one shard.
+  shard:
+    name: mutants shard ${{ matrix.shard }}
     runs-on: macos-15
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '["0/1"]' || '["0/4","1/4","2/4","3/4"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,4 +41,19 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: git diff "origin/${BASE_REF}...HEAD" > pr.diff
       - name: Mutation test and gate
-        run: just mutants ${{ github.event_name == 'pull_request' && 'pr.diff' || '' }}
+        env:
+          DIFF: ${{ github.event_name == 'pull_request' && 'pr.diff' || '' }}
+          SHARD: ${{ matrix.shard }}
+        run: just mutants "$DIFF" "$SHARD"
+
+  # The required status check: passes only when every shard passed.
+  mutants:
+    name: mutants
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        env:
+          RESULT: ${{ needs.shard.result }}
+        run: test "$RESULT" = success
