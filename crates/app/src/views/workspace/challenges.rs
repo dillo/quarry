@@ -19,6 +19,7 @@ use crate::{
         attempts::Attempts,
         brief::{self, Brief, Expected},
         tabs::TabId,
+        verdict::Solve,
     },
     shell::actions::{CheckAnswer, NextChallenge, PreviousChallenge},
     tracks::Tracks,
@@ -211,16 +212,38 @@ impl Workspace {
         .detach();
     }
 
-    /// Counts tab `tab`'s finished check as an attempt at its challenge.
+    /// Counts tab `tab`'s finished check as an attempt at its challenge,
+    /// and tells the tab's card about it.
     pub(super) fn checked(
         &mut self,
         tab: TabId,
         outcome: &Result<Verdict, CheckError>,
         cx: &mut Context<Self>,
     ) {
-        if let Some(id) = self.challenge(tab).cloned() {
-            self.challenges.attempts.record(&id, outcome);
-            cx.notify();
+        let Some(id) = self.challenge(tab).cloned() else {
+            return;
+        };
+        self.challenges.attempts.record(&id, outcome);
+        let solve = self.solve(&id);
+        if let Some(view) = self.views.get(&tab) {
+            view.update(cx, |tab, cx| tab.set_solve(solve, cx));
+        }
+        cx.notify();
+    }
+
+    /// What the card needs to know about challenge `id`.
+    fn solve(&self, id: &ChallengeId) -> Solve {
+        let tracks = &self.challenges.tracks;
+        let title = |id: &ChallengeId| tracks.challenge(id).map(|(_, c)| c.title.clone());
+        Solve {
+            title: title(id).unwrap_or_default(),
+            attempt: self.challenges.attempts.of(id).checks,
+            next: tracks
+                .catalog()
+                .neighbours(id)
+                .next
+                .as_ref()
+                .and_then(title),
         }
     }
 

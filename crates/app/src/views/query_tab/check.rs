@@ -12,7 +12,10 @@ use quarry_challenges::{
 };
 
 use super::{QueryTab, QueryTabEvent};
-use crate::{model::verdict::CheckState, views::results::CHECK};
+use crate::{
+    model::verdict::{CheckState, Solve},
+    views::results::CHECK,
+};
 
 impl QueryTab {
     /// Gives the tab the Check view, for a challenge tab.
@@ -44,11 +47,41 @@ impl QueryTab {
         cx.notify();
     }
 
-    /// Stops the latest check, and returns a runner for the next one.
+    /// Stops the latest check, and returns a runner for the next one. The
+    /// next card shows its buttons again.
     fn restart_check(&mut self) -> Runner {
+        self.stayed = false;
         self.check_stop.stop();
         self.check_stop = Stop::default();
         Runner::stoppable(LIMITS, self.check_stop.clone())
+    }
+
+    /// Tells the feedback card about the challenge the latest check was
+    /// for.
+    pub fn set_solve(&mut self, solve: Solve, cx: &mut Context<Self>) {
+        self.solve = solve;
+        cx.notify();
+    }
+
+    /// What the feedback card knows of the challenge.
+    pub fn solve(&self) -> &Solve {
+        &self.solve
+    }
+
+    /// Stay here: hides the solved card's buttons until the next check.
+    pub fn stay(&mut self, cx: &mut Context<Self>) {
+        self.stayed = true;
+        cx.notify();
+    }
+
+    /// Whether Stay here was clicked since the latest check.
+    pub fn stayed(&self) -> bool {
+        self.stayed
+    }
+
+    /// Next challenge: asks the workspace to open the next challenge.
+    pub fn next_challenge(&mut self, cx: &mut Context<Self>) {
+        cx.emit(QueryTabEvent::NextChallenge);
     }
 
     /// What stops the tab's latest check.

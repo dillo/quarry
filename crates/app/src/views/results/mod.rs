@@ -4,7 +4,7 @@
 //! Each is a [`ResultView`] in the [`ResultViewRegistry`]; adding a view is
 //! a new module and one line in [`ResultViewRegistry::standard`].
 
-mod check;
+pub mod check;
 mod grid;
 mod messages;
 mod plan;

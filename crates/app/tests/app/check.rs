@@ -1,9 +1,9 @@
 //! Check answer (⌘⇧↵): grading a challenge tab's answer and showing it in
 //! the Check view.
 
-use gpui_kit::{Entity, TestAppContext, VisualTestContext};
+use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
 use quarry::{
-    model::verdict::CheckState,
+    model::verdict::{self, Card, CheckState, Footer, Mark},
     views::{
         results::{self, CHECK},
         workspace::{NOT_A_CHALLENGE, Workspace},
@@ -154,4 +154,75 @@ fn a_newer_check_stops_the_older_one(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("cmd-shift-enter");
     assert!(first.is_stopped());
     assert!(!stop(cx).is_stopped());
+}
+
+/// The active tab's card, once its check is done.
+fn card(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Option<Card> {
+    cx.update(|_, cx| {
+        let tab = workspace.read(cx).active_tab().read(cx);
+        match tab.check_state() {
+            CheckState::Done(outcome) => Some(verdict::card(outcome, tab.solve())),
+            _ => None,
+        }
+    })
+}
+
+#[gpui_kit::test]
+fn a_wrong_answer_shows_every_rule_on_the_card(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums LIMIT 3");
+    let card = card(&workspace, cx).expect("a card");
+    let marks: Vec<Mark> = card.lines.iter().map(|line| line.mark).collect();
+    assert_eq!(marks, [Mark::Pass, Mark::Fail, Mark::Skip, Mark::Skip]);
+    assert_eq!(card.footer, None);
+    assert!(!drawn(cx, results::check::NEXT_CHALLENGE));
+}
+
+#[gpui_kit::test]
+fn a_solve_offers_the_next_challenge(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    check_first_spin(&workspace, cx, "SELECT title FROM albums");
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
+    let card = card(&workspace, cx).expect("a card");
+    assert_eq!(card.headline, "First spin: solved");
+    assert_eq!(card.subline.as_deref(), Some("Attempt 2"));
+    assert_eq!(card.footer, Some(Footer::Next("Crate digging".to_owned())));
+    assert!(drawn(cx, results::check::STAY_HERE));
+    cx.update(|window, cx| window.click(results::check::NEXT_CHALLENGE, cx));
+    let active = cx.update(|_, cx| workspace.read(cx).active_challenge().cloned());
+    assert_eq!(active, ChallengeId::parse("vinyl-vault/crate-digging"));
+}
+
+#[gpui_kit::test]
+fn stay_here_hides_the_buttons_until_the_next_check(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
+    cx.update(|window, cx| window.click(results::check::STAY_HERE, cx));
+    assert!(!drawn(cx, results::check::NEXT_CHALLENGE));
+    assert!(!drawn(cx, results::check::STAY_HERE));
+    let active = cx.update(|_, cx| workspace.read(cx).active_challenge().cloned());
+    assert_eq!(active, ChallengeId::parse("vinyl-vault/first-spin"));
+    check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
+    assert!(drawn(cx, results::check::NEXT_CHALLENGE));
+}
+
+#[gpui_kit::test]
+fn the_last_challenge_has_no_next(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    let last = ChallengeId::new("vinyl-vault", "unknown-origins");
+    open_challenge(&workspace, cx, &last);
+    let solution = cx.update(|_, cx| {
+        let (_, challenge) = workspace.read(cx).tracks().challenge(&last)?;
+        Some(challenge.solution.clone())
+    });
+    write(&workspace, cx, &solution.expect("the last challenge"));
+    cx.simulate_keystrokes("cmd-shift-enter");
+    assert!(settle(cx, |_, cx| {
+        let tab = workspace.read(cx).active_tab().read(cx);
+        matches!(tab.check_state(), CheckState::Done(_))
+    }));
+    assert_eq!(
+        card(&workspace, cx).and_then(|card| card.footer),
+        Some(Footer::Last)
+    );
 }

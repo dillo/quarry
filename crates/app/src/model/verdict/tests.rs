@@ -4,18 +4,39 @@ use quarry_challenges::{
 };
 use quarry_engine::error::EngineError;
 
-use super::{CheckState, Report, Tone, report};
+use super::{Card, CheckState, Footer, Line, Mark, Solve, Tone, card};
 
-fn wrong(failure: CheckFailure) -> Report {
-    let outcome = RuleOutcome {
-        rule: "columns",
-        status: RuleStatus::Failed(failure),
-    };
-    report(&Ok(Verdict::of(Grading::new(vec![outcome]))))
+fn outcome(rule: &'static str, status: RuleStatus) -> RuleOutcome {
+    RuleOutcome { rule, status }
 }
 
+fn solve(next: Option<&str>) -> Solve {
+    Solve {
+        title: "First spin".to_owned(),
+        attempt: 3,
+        next: next.map(str::to_owned),
+    }
+}
+
+fn graded(outcomes: Vec<RuleOutcome>) -> Card {
+    card(&Ok(Verdict::of(Grading::new(outcomes))), &solve(None))
+}
+
+fn errored(error: CheckError) -> Card {
+    card(&Err(error), &solve(None))
+}
+
+/// The line a lone failure gives.
 fn detail(failure: CheckFailure) -> Option<String> {
-    wrong(failure).detail
+    let card = graded(vec![outcome("columns", RuleStatus::Failed(failure))]);
+    card.lines.first().map(|line| line.text.clone())
+}
+
+fn lines(card: &Card) -> Vec<(Mark, &str)> {
+    card.lines
+        .iter()
+        .map(|line| (line.mark, line.text.as_str()))
+        .collect()
 }
 
 #[test]
@@ -24,25 +45,107 @@ fn nothing_is_checked_at_first() {
 }
 
 #[test]
-fn a_solved_answer_says_so() {
+fn a_solve_names_the_challenge_the_attempt_and_whats_next() {
+    let solved = card(
+        &Ok(Verdict::of(Grading::new(Vec::new()))),
+        &solve(Some("Crate digging")),
+    );
     assert_eq!(
-        report(&Ok(Verdict::of(Grading::new(Vec::new())))),
-        Report {
+        solved,
+        Card {
             tone: Tone::Solved,
-            headline: "Solved.".to_owned(),
-            detail: None,
+            headline: "First spin: solved".to_owned(),
+            subline: Some("Attempt 3".to_owned()),
+            lines: Vec::new(),
+            footer: Some(Footer::Next("Crate digging".to_owned())),
+        }
+    );
+    let last = graded(Vec::new());
+    assert_eq!(last.footer, Some(Footer::Last));
+}
+
+#[test]
+fn a_wrong_answer_lists_every_rule() {
+    let failure = CheckFailure::RowCount {
+        expected: 4,
+        got: 7,
+    };
+    let wrong = graded(vec![
+        outcome("columns", RuleStatus::Passed),
+        outcome("row count", RuleStatus::Failed(failure)),
+        outcome("contents", RuleStatus::NotChecked),
+        outcome("order", RuleStatus::NotChecked),
+    ]);
+    assert_eq!(wrong.tone, Tone::Wrong);
+    assert_eq!(wrong.headline, "Not quite yet");
+    assert_eq!(
+        wrong.subline.as_deref(),
+        Some("Here's what's different. Your query is unchanged.")
+    );
+    assert_eq!(wrong.footer, None);
+    assert_eq!(
+        lines(&wrong),
+        [
+            (Mark::Pass, "Columns match"),
+            (Mark::Fail, "Expected 4 rows, got 7."),
+            (Mark::Skip, "Rows not checked until the row count matches"),
+            (Mark::Skip, "Order not checked until the row count matches"),
+        ]
+    );
+}
+
+#[test]
+fn every_rule_has_a_name() {
+    let passed = graded(vec![
+        outcome("row count", RuleStatus::Passed),
+        outcome("contents", RuleStatus::Passed),
+        outcome("order", RuleStatus::Passed),
+        outcome("new", RuleStatus::Passed),
+        outcome(
+            "columns",
+            RuleStatus::Failed(CheckFailure::Order { row: 0 }),
+        ),
+        outcome("new", RuleStatus::NotChecked),
+    ]);
+    assert_eq!(
+        lines(&passed),
+        [
+            (Mark::Pass, "Row count matches"),
+            (Mark::Pass, "Rows match"),
+            (Mark::Pass, "Order matches"),
+            (Mark::Pass, "This check matches"),
+            (Mark::Fail, "The rows are right, but row 1 is out of order."),
+            (Mark::Skip, "This check not checked until the columns match"),
+        ]
+    );
+}
+
+#[test]
+fn a_rule_that_doesnt_apply_says_so() {
+    let unordered = graded(vec![outcome(
+        "contents",
+        RuleStatus::Failed(CheckFailure::Contents {
+            missing: 1,
+            unexpected: 0,
+        }),
+    )]);
+    assert_eq!(unordered.lines[0].mark, Mark::Fail);
+    let line = super::line(&outcome("order", RuleStatus::NotChecked), None);
+    assert_eq!(
+        line,
+        Line {
+            mark: Mark::Skip,
+            text: "Order doesn't matter here".to_owned()
         }
     );
 }
 
 #[test]
-fn a_wrong_answer_is_not_quite_yet() {
-    let report = wrong(CheckFailure::RowCount {
-        expected: 7,
-        got: 8,
-    });
-    assert_eq!(report.tone, Tone::Wrong);
-    assert_eq!(report.headline, "Not quite yet.");
+fn marks_have_glyphs() {
+    assert_eq!(
+        [Mark::Pass, Mark::Fail, Mark::Skip].map(Mark::glyph),
+        ["✓", "✗", "–"]
+    );
 }
 
 #[test]
@@ -107,12 +210,12 @@ fn order_names_the_first_row_counting_from_one() {
 
 #[test]
 fn errors_say_why_nothing_was_checked() {
-    let failed = report(&Err(CheckError::Sql("no such column: nope".to_owned())));
+    let failed = errored(CheckError::Sql("no such column: nope".to_owned()));
     assert_eq!(
         (
             failed.tone,
             failed.headline.as_str(),
-            failed.detail.as_deref()
+            failed.subline.as_deref()
         ),
         (
             Tone::Failed,
@@ -120,15 +223,15 @@ fn errors_say_why_nothing_was_checked() {
             Some("no such column: nope")
         )
     );
-    let headline = |error| report(&Err(error)).headline;
+    let headline = |error| errored(error).headline;
     assert_eq!(headline(CheckError::TimedOut), "Stopped after 5 seconds.");
     assert_eq!(
         headline(CheckError::TooManyRows),
         "Returned more than 10,000 rows."
     );
-    let content = report(&Err(CheckError::Content("no such table".to_owned())));
+    let content = errored(CheckError::Content("no such table".to_owned()));
     assert_eq!(
-        (content.headline.as_str(), content.detail),
+        (content.headline.as_str(), content.subline),
         (
             "This challenge has a problem; your answer wasn't checked.",
             None
@@ -138,11 +241,12 @@ fn errors_say_why_nothing_was_checked() {
 
 #[test]
 fn a_failed_copy_gives_the_engine_error() {
-    let copy = report(&Err(CheckError::Sandbox(EngineError::Cancelled)));
+    let copy = errored(CheckError::Sandbox(EngineError::Cancelled));
     assert_eq!(copy.tone, Tone::Failed);
     assert_eq!(
         copy.headline,
         "The challenge's database couldn't be copied."
     );
-    assert_eq!(copy.detail.as_deref(), Some("Query cancelled."));
+    assert_eq!(copy.subline.as_deref(), Some("Query cancelled."));
+    assert!(copy.lines.is_empty());
 }
