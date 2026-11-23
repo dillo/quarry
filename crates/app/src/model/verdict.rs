@@ -57,11 +57,9 @@ impl Report {
 
 /// The report for a finished check.
 pub fn report(outcome: &Result<Verdict, CheckError>) -> Report {
-    match outcome {
-        Ok(Verdict::Solved) => Report::new(Tone::Solved, "Solved.", None),
-        Ok(Verdict::Wrong(failure)) => {
-            Report::new(Tone::Wrong, "Not quite yet.", Some(difference(failure)))
-        }
+    match outcome.as_ref().map(Verdict::failure) {
+        Ok(None) => Report::new(Tone::Solved, "Solved.", None),
+        Ok(Some(failure)) => Report::new(Tone::Wrong, "Not quite yet.", Some(difference(failure))),
         Err(error) => unchecked(error),
     }
 }

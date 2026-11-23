@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use quarry_engine::error::EngineError;
 
-use super::{CheckError, Verdict, check, check_within};
+use super::{CheckError, Expectation, Verdict, check, check_within, expect};
 use crate::{
     rules::CheckFailure,
     run::{LIMITS, Limits, RunError},
@@ -35,25 +35,24 @@ fn challenge(solution: &str, ordered: bool) -> Challenge {
 fn a_matching_answer_is_solved() {
     let challenge = challenge("SELECT title FROM albums WHERE year < 1965", false);
     let answer = "select TITLE from albums where year = 1959";
-    assert_eq!(
-        check(&template().unwrap(), &challenge, answer),
-        Ok(Verdict::Solved)
-    );
+    let verdict = check(&template().unwrap(), &challenge, answer).unwrap();
+    assert!(verdict.is_solved());
+    assert_eq!(verdict.failure(), None);
+    assert!(matches!(verdict, Verdict::Solved(_)));
 }
 
 #[test]
 fn a_wrong_answer_reports_the_first_failure() {
     let ordered = challenge("SELECT title FROM albums ORDER BY year DESC", true);
     let answer = "SELECT title FROM albums ORDER BY year";
-    assert_eq!(
-        check(&template().unwrap(), &ordered, answer),
-        Ok(Verdict::Wrong(CheckFailure::Order { row: 0 }))
-    );
+    let wrong = check(&template().unwrap(), &ordered, answer).unwrap();
+    assert!(!wrong.is_solved());
+    assert!(matches!(wrong, Verdict::Wrong(_)));
+    assert_eq!(wrong.failure(), Some(&CheckFailure::Order { row: 0 }));
+    assert_eq!(wrong.grading().outcomes().len(), 4);
     let unordered = challenge("SELECT title FROM albums ORDER BY year DESC", false);
-    assert_eq!(
-        check(&template().unwrap(), &unordered, answer),
-        Ok(Verdict::Solved)
-    );
+    let verdict = check(&template().unwrap(), &unordered, answer).unwrap();
+    assert!(verdict.is_solved());
 }
 
 #[test]
@@ -92,5 +91,35 @@ fn run_errors_become_check_errors() {
     assert_eq!(
         CheckError::from(RunError::TooManyRows),
         CheckError::TooManyRows
+    );
+}
+
+#[test]
+fn the_expectation_is_the_solutions_columns_and_row_count() {
+    let challenge = challenge(
+        "SELECT title, year AS released FROM albums WHERE year > 1960",
+        false,
+    );
+    assert_eq!(
+        expect(&template().unwrap(), &challenge),
+        Ok(Expectation {
+            columns: vec!["title".to_owned(), "released".to_owned()],
+            rows: 1,
+        })
+    );
+}
+
+#[test]
+fn a_broken_solution_has_no_expectation() {
+    let broken = challenge("SELECT nope FROM albums", false);
+    assert_eq!(
+        expect(&template().unwrap(), &broken),
+        Err(CheckError::Content("no such column: nope".to_owned()))
+    );
+    let mut mutation = challenge("SELECT 1", false);
+    mutation.kind = "mutation".to_owned();
+    assert_eq!(
+        expect(&template().unwrap(), &mutation),
+        Err(CheckError::Content("unknown kind \"mutation\"".to_owned()))
     );
 }

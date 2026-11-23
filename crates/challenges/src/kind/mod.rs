@@ -24,6 +24,19 @@ pub trait ChallengeKind: Send + Sync {
     /// Its id, as `kind` in `challenges.toml`, such as "query".
     fn id(&self) -> &'static str;
 
+    /// What a right answer to `challenge` gives, run on a fresh copy of
+    /// `template` within `limits`.
+    ///
+    /// # Errors
+    /// Returns [`CheckError::Content`] when the solution gives no result, or
+    /// [`CheckError::Sandbox`] when no copy can be made.
+    fn expected(
+        &self,
+        challenge: &Challenge,
+        template: &Template,
+        limits: Limits,
+    ) -> Result<QueryResult, CheckError>;
+
     /// Runs `sql` and `challenge`'s solution, each on a fresh copy of
     /// `template`, within `limits`.
     ///

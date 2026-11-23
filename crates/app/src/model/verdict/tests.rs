@@ -1,13 +1,17 @@
 use quarry_challenges::{
     check::{CheckError, Verdict},
-    rules::CheckFailure,
+    rules::{CheckFailure, Grading, RuleOutcome, RuleStatus},
 };
 use quarry_engine::error::EngineError;
 
 use super::{CheckState, Report, Tone, report};
 
 fn wrong(failure: CheckFailure) -> Report {
-    report(&Ok(Verdict::Wrong(failure)))
+    let outcome = RuleOutcome {
+        rule: "columns",
+        status: RuleStatus::Failed(failure),
+    };
+    report(&Ok(Verdict::of(Grading::new(vec![outcome]))))
 }
 
 fn detail(failure: CheckFailure) -> Option<String> {
@@ -22,7 +26,7 @@ fn nothing_is_checked_at_first() {
 #[test]
 fn a_solved_answer_says_so() {
     assert_eq!(
-        report(&Ok(Verdict::Solved)),
+        report(&Ok(Verdict::of(Grading::new(Vec::new())))),
         Report {
             tone: Tone::Solved,
             headline: "Solved.".to_owned(),

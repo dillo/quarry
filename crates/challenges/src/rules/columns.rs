@@ -12,6 +12,10 @@ impl CheckRule for Columns {
         "columns"
     }
 
+    fn applies(&self, _: &Comparison<'_>) -> bool {
+        true
+    }
+
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure> {
         let expected = names(comparison.expected);
         let got = names(comparison.got);

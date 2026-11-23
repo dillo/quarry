@@ -1,7 +1,7 @@
 //! Query challenges: the user's result is compared with the reference
 //! solution's, each run on its own fresh copy.
 
-use quarry_engine::sqlite::SqliteDriver;
+use quarry_engine::{result::QueryResult, sqlite::SqliteDriver};
 
 use super::{Answers, ChallengeKind};
 use crate::{
@@ -19,6 +19,16 @@ impl ChallengeKind for Query {
         "query"
     }
 
+    fn expected(
+        &self,
+        challenge: &Challenge,
+        template: &Template,
+        limits: Limits,
+    ) -> Result<QueryResult, CheckError> {
+        run::run(&mut copy(template)?, &challenge.solution, limits)
+            .map_err(|error| CheckError::Content(describe(&error)))
+    }
+
     fn answers(
         &self,
         challenge: &Challenge,
@@ -26,8 +36,7 @@ impl ChallengeKind for Query {
         template: &Template,
         limits: Limits,
     ) -> Result<Answers, CheckError> {
-        let expected = run::run(&mut copy(template)?, &challenge.solution, limits)
-            .map_err(|error| CheckError::Content(describe(&error)))?;
+        let expected = self.expected(challenge, template, limits)?;
         let got = run::run(&mut copy(template)?, sql, limits).map_err(CheckError::from)?;
         Ok(Answers { expected, got })
     }

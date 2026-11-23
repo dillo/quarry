@@ -9,11 +9,7 @@ use quarry::{
         workspace::{NOT_A_CHALLENGE, Workspace},
     },
 };
-use quarry_challenges::{
-    catalog::ChallengeId,
-    check::{CheckError, Verdict},
-    rules::CheckFailure,
-};
+use quarry_challenges::{catalog::ChallengeId, check::CheckError, rules::CheckFailure};
 
 use super::{
     challenges::open_challenge,
@@ -29,6 +25,11 @@ fn state(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> CheckStat
             .check_state()
             .clone()
     })
+}
+
+/// Whether `state` is a finished check that solved the challenge.
+fn solved(state: &CheckState) -> bool {
+    matches!(state, CheckState::Done(Ok(verdict)) if verdict.is_solved())
 }
 
 /// Writes `sql` in a new First spin tab, checks it with ⌘⇧↵, and waits.
@@ -55,7 +56,7 @@ fn check_first_spin(
 fn the_solution_is_solved_and_shown_in_the_check_view(cx: &mut TestAppContext) {
     let (workspace, cx) = open(cx).expect("the sample database opens");
     let checked = check_first_spin(&workspace, cx, "SELECT title, year FROM albums;");
-    assert_eq!(checked, CheckState::Done(Ok(Verdict::Solved)));
+    assert!(solved(&checked));
     let view = cx.update(|_, cx| workspace.read(cx).active_tab().read(cx).view_id());
     assert_eq!(view, CHECK);
     assert!(drawn(cx, CHECK));
@@ -69,7 +70,9 @@ fn a_wrong_answer_says_what_differs(cx: &mut TestAppContext) {
         expected: 2,
         got: 1,
     };
-    assert_eq!(checked, CheckState::Done(Ok(Verdict::Wrong(failure))));
+    assert!(
+        matches!(&checked, CheckState::Done(Ok(verdict)) if verdict.failure() == Some(&failure))
+    );
 }
 
 #[gpui_kit::test]
@@ -91,7 +94,7 @@ fn changes_made_in_the_tab_never_reach_grading(cx: &mut TestAppContext) {
     write(&workspace, cx, "DELETE FROM albums");
     run(&workspace, cx);
     let checked = check_first_spin(&workspace, cx, "SELECT title, year FROM albums");
-    assert_eq!(checked, CheckState::Done(Ok(Verdict::Solved)));
+    assert!(solved(&checked));
 }
 
 #[gpui_kit::test]
