@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use gpui_kit::{Entity, TestAppContext, VisualTestContext};
+use gpui_kit::{Entity, TestAppContext, VisualTestContext, test::TestWindowExt};
 use quarry::{
     model::{attempts::Tally, brief::Expected},
     views::{inspector, workspace::Workspace},
@@ -17,7 +17,7 @@ use quarry_store::{
 use super::{
     challenges::open_challenge,
     check::check_first_spin,
-    support::{broken_tracks, drawn, install, open, open_on, open_with, settle},
+    support::{broken_tracks, drawn, install, open, open_on, open_with, settle, two_tracks},
 };
 
 fn first_spin() -> ChallengeId {
@@ -141,4 +141,55 @@ fn a_hidden_inspector_stays_hidden_after_a_restart(cx: &mut TestAppContext) {
     let (workspace, cx) = open_with(cx, store).expect("the sample database opens");
     assert!(!cx.update(|_, cx| workspace.read(cx).inspector_open()));
     assert!(!drawn(cx, "inspector"));
+}
+
+fn active(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> Option<ChallengeId> {
+    cx.update(|_, cx| workspace.read(cx).active_challenge().cloned())
+}
+
+fn tab_count(workspace: &Entity<Workspace>, cx: &mut VisualTestContext) -> usize {
+    cx.update(|_, cx| workspace.read(cx).tabs().tabs().len())
+}
+
+#[gpui_kit::test]
+fn next_and_previous_run_through_a_track_and_on_to_the_next(cx: &mut TestAppContext) {
+    install(cx);
+    let (workspace, cx) =
+        open_on(cx, Arc::new(Forgetful), two_tracks()).expect("the sample database opens");
+    open_challenge(&workspace, cx, &ChallengeId::new("one", "a"));
+    cx.simulate_keystrokes("cmd-alt-[");
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/a"));
+    cx.simulate_keystrokes("cmd-alt-]");
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/b"));
+    cx.simulate_keystrokes("cmd-alt-]");
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("two/c"));
+    cx.simulate_keystrokes("cmd-alt-]");
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("two/c"));
+    assert_eq!(tab_count(&workspace, cx), 4);
+    cx.simulate_keystrokes("cmd-alt-[ cmd-alt-[");
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/a"));
+    assert_eq!(tab_count(&workspace, cx), 4);
+}
+
+#[gpui_kit::test]
+fn the_briefs_buttons_move_and_stop_at_the_ends(cx: &mut TestAppContext) {
+    install(cx);
+    let (workspace, cx) =
+        open_on(cx, Arc::new(Forgetful), two_tracks()).expect("the sample database opens");
+    open_challenge(&workspace, cx, &ChallengeId::new("one", "a"));
+    assert!(drawn(cx, inspector::PREV));
+    cx.update(|window, cx| window.click(inspector::PREV, cx));
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/a"));
+    cx.update(|window, cx| window.click(inspector::NEXT, cx));
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/b"));
+    cx.update(|window, cx| window.click(inspector::PREV, cx));
+    assert_eq!(active(&workspace, cx), ChallengeId::parse("one/a"));
+}
+
+#[gpui_kit::test]
+fn next_does_nothing_in_a_plain_tab(cx: &mut TestAppContext) {
+    let (workspace, cx) = open(cx).expect("the sample database opens");
+    cx.simulate_keystrokes("cmd-alt-] cmd-alt-[");
+    assert_eq!(active(&workspace, cx), None);
+    assert_eq!(tab_count(&workspace, cx), 1);
 }

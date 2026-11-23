@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use gpui_kit::{AppContext, Context, Window};
 use quarry_challenges::{
-    catalog::ChallengeId,
+    catalog::{ChallengeId, Neighbours},
     check::{self, CheckError, Verdict},
     track::Challenge,
 };
@@ -20,7 +20,7 @@ use crate::{
         brief::{self, Brief, Expected},
         tabs::TabId,
     },
-    shell::actions::CheckAnswer,
+    shell::actions::{CheckAnswer, NextChallenge, PreviousChallenge},
     tracks::Tracks,
     views::query_tab::QueryTab,
 };
@@ -233,6 +233,46 @@ impl Workspace {
         let expected = tracks.expected(id);
         let tally = self.challenges.attempts.of(id);
         Some(brief::brief(track, challenge, position, &expected, tally))
+    }
+
+    /// The challenges before and after the active one; none outside a
+    /// challenge tab.
+    pub fn active_neighbours(&self) -> Neighbours {
+        self.active_challenge()
+            .map(|id| self.challenges.tracks.catalog().neighbours(id))
+            .unwrap_or_default()
+    }
+
+    /// Opens the challenge before the active one, if there is one.
+    pub fn open_previous_challenge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = self.active_neighbours().prev {
+            self.open_challenge(&id, window, cx);
+        }
+    }
+
+    /// Opens the challenge after the active one, if there is one.
+    pub fn open_next_challenge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = self.active_neighbours().next {
+            self.open_challenge(&id, window, cx);
+        }
+    }
+
+    pub(super) fn previous_challenge(
+        &mut self,
+        _: &PreviousChallenge,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_previous_challenge(window, cx);
+    }
+
+    pub(super) fn next_challenge(
+        &mut self,
+        _: &NextChallenge,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_next_challenge(window, cx);
     }
 
     /// This session's attempts.

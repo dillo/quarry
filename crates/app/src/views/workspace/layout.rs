@@ -36,6 +36,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::run_all))
             .on_action(cx.listener(Self::explain))
             .on_action(cx.listener(Self::check_answer))
+            .on_action(cx.listener(Self::previous_challenge))
+            .on_action(cx.listener(Self::next_challenge))
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(Self::new_tab))
             .on_action(cx.listener(Self::close_tab))

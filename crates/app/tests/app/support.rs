@@ -140,18 +140,43 @@ pub fn drawn(cx: &mut VisualTestContext, id: impl Into<gpui_kit::ElementId>) -> 
     })
 }
 
-/// One track, "Broken", whose challenge `broken/a` has `solution` and whose
-/// database is built from `schema`.
-pub fn broken_tracks(schema: &'static str, solution: &str) -> Tracks {
-    let challenges = format!(
-        "[[challenge]]\nid = \"a\"\ntitle = \"Cracked\"\nprompt = \"P\"\nkind = \"query\"\nsolution = \"{solution}\"\nhints = [\"1\", \"2\", \"3\"]"
+/// Track `slug`, titled after it, whose challenges `ids` (each titled
+/// after its id) share `solution` and whose database is built from
+/// `schema`.
+pub fn raw_track(
+    slug: &'static str,
+    order: u32,
+    ids: &[&str],
+    schema: &'static str,
+    solution: &str,
+) -> RawTrack {
+    let challenges = ids
+        .iter()
+        .map(|id| format!("[[challenge]]\nid = \"{id}\"\ntitle = \"{id}\"\nprompt = \"P\"\nkind = \"query\"\nsolution = \"{solution}\"\nhints = [\"1\", \"2\", \"3\"]"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let track = format!(
+        "title = \"{slug}\"\nemoji = \"E\"\nintro = \"I\"\nconcepts = []\ndifficulty = \"D\"\norder = {order}"
     );
-    let raw = RawTrack {
-        slug: "broken",
-        track: "title = \"Broken\"\nemoji = \"E\"\nintro = \"I\"\nconcepts = []\ndifficulty = \"D\"\norder = 1",
+    RawTrack {
+        slug,
+        track: Box::leak(track.into_boxed_str()),
         schema,
         seed: "",
         challenges: Box::leak(challenges.into_boxed_str()),
-    };
-    Tracks::new(Catalog::load(&[raw]).0)
+    }
+}
+
+/// One track, "broken", whose challenge `broken/a` (titled "a") has
+/// `solution` and whose database is built from `schema`.
+pub fn broken_tracks(schema: &'static str, solution: &str) -> Tracks {
+    Tracks::new(Catalog::load(&[raw_track("broken", 1, &["a"], schema, solution)]).0)
+}
+
+/// Two tracks: "one" with challenges a and b, then "two" with c.
+pub fn two_tracks() -> Tracks {
+    let schema = "CREATE TABLE t (n INTEGER); INSERT INTO t VALUES (1);";
+    let one = raw_track("one", 1, &["a", "b"], schema, "SELECT n FROM t");
+    let two = raw_track("two", 2, &["c"], schema, "SELECT n FROM t");
+    Tracks::new(Catalog::load(&[one, two]).0)
 }

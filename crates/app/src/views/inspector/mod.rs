@@ -7,6 +7,8 @@
 mod brief;
 mod empty;
 
+pub use self::brief::{NEXT, PREV, TITLE};
+
 use gpui_kit::{AnyElement, Context};
 
 use super::workspace::Workspace;

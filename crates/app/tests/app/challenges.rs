@@ -76,7 +76,7 @@ fn a_challenge_whose_database_cant_be_built_opens_nothing(cx: &mut TestAppContex
     open_challenge(&workspace, cx, &ChallengeId::new("broken", "a"));
     assert_eq!(titles(&workspace, cx), ["Query 1"]);
     let note = cx.update(|_, cx| workspace.read(cx).note().map(str::to_owned));
-    assert!(note.is_some_and(|note| note.starts_with("Couldn't open Cracked: ")));
+    assert!(note.is_some_and(|note| note.starts_with("Couldn't open a: ")));
 }
 
 #[gpui_kit::test]
