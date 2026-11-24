@@ -11,9 +11,11 @@ pub mod color;
 pub mod component_theme;
 pub mod components;
 pub mod palette;
+pub mod pulse;
 pub mod tokens;
 pub mod transition;
 
 pub use appearance::{Appearance, Preference};
 pub use aurora::Aurora;
 pub use palette::{Colors, Palette, Role};
+pub use pulse::Pulse;

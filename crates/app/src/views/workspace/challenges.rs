@@ -2,26 +2,40 @@
 //! on a fresh copy of its track's database. Plain tabs share the sample
 //! database.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Instant};
 
-use gpui_kit::{Context, Window};
-use quarry_challenges::catalog::ChallengeId;
-use quarry_challenges::track::Challenge;
+use gpui_kit::{AppContext, Context, Window};
+use quarry_challenges::{
+    catalog::{ChallengeId, Neighbours},
+    check::{self, CheckError, Verdict},
+    track::Challenge,
+};
 use quarry_engine::session::Session;
 use quarry_store::drafts::Draft;
+use quarry_ui_kit::{Pulse, tokens::motion};
 
 use super::Workspace;
 use crate::{
-    model::tabs::TabId, shell::actions::CheckAnswer, tracks::Tracks, views::query_tab::QueryTab,
+    model::{
+        attempts::Attempts,
+        brief::{self, Brief, Expected},
+        tabs::TabId,
+        verdict::Solve,
+    },
+    shell::actions::{CheckAnswer, NextChallenge, PreviousChallenge},
+    tracks::Tracks,
+    views::query_tab::QueryTab,
 };
 
 /// What ⌘⇧↵ says in a tab that isn't a challenge tab.
 pub const NOT_A_CHALLENGE: &str = "Check answer works in challenge tabs";
 
-/// The tracks, and the sandbox of every open challenge tab.
+/// The tracks, the sandbox of every open challenge tab, and this
+/// session's attempts.
 pub(super) struct Challenges {
     tracks: Tracks,
     sandboxes: BTreeMap<TabId, Sandbox>,
+    attempts: Attempts,
 }
 
 impl Challenges {
@@ -33,11 +47,12 @@ impl Challenges {
         Some(challenge.title.clone())
     }
 
-    /// The embedded tracks, with no challenge tab open.
-    pub(super) fn embedded() -> Self {
+    /// `tracks`, with no challenge tab open.
+    pub(super) fn new(tracks: Tracks) -> Self {
         Self {
-            tracks: Tracks::embedded(),
+            tracks,
             sandboxes: BTreeMap::new(),
+            attempts: Attempts::default(),
         }
     }
 }
@@ -151,17 +166,157 @@ impl Workspace {
 
     /// The active challenge's track slug and challenge.
     fn active_challenge_details(&self) -> Option<(String, Challenge)> {
-        let id = self.active_challenge()?;
+        self.details(self.active_challenge()?)
+    }
+
+    /// Challenge `id`'s track slug, and the challenge.
+    fn details(&self, id: &ChallengeId) -> Option<(String, Challenge)> {
         let (track, challenge) = self.challenges.tracks.challenge(id)?;
         Some((track.slug.clone(), challenge.clone()))
     }
 
-    /// Makes `tab` a challenge tab on `sandbox`, with the Check view.
+    /// Makes `tab` a challenge tab on `sandbox`, with the Check view, and
+    /// starts working out its challenge's expected result.
     fn attach(&mut self, tab: TabId, sandbox: Sandbox, cx: &mut Context<Self>) {
+        self.work_out_expectation(&sandbox.challenge, cx);
         self.challenges.sandboxes.insert(tab, sandbox);
         if let Some(view) = self.views.get(&tab) {
             view.update(cx, QueryTab::play_challenge);
         }
+    }
+
+    /// Works out what a right answer to `id` looks like on the background
+    /// executor, unless that has already started.
+    fn work_out_expectation(&mut self, id: &ChallengeId, cx: &mut Context<Self>) {
+        if !self.challenges.tracks.start_expecting(id) {
+            return;
+        }
+        let Some((slug, challenge)) = self.details(id) else {
+            return;
+        };
+        let Ok(template) = self.challenges.tracks.template(&slug) else {
+            self.challenges
+                .tracks
+                .set_expected(id, Expected::Unavailable);
+            return;
+        };
+        let id = id.clone();
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_spawn(async move { check::expect(&template, &challenge) })
+                .await;
+            let _ = this.update(cx, |workspace, cx| {
+                workspace.challenges.tracks.set_expected(&id, result.into());
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Counts tab `tab`'s finished check as an attempt at its challenge,
+    /// and tells the tab's card about it.
+    pub(super) fn checked(
+        &mut self,
+        tab: TabId,
+        outcome: &Result<Verdict, CheckError>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = self.challenge(tab).cloned() else {
+            return;
+        };
+        self.challenges.attempts.record(&id, outcome);
+        if outcome.as_ref().is_ok_and(Verdict::is_solved) {
+            self.start_pulse(cx);
+        }
+        let solve = self.solve(&id);
+        if let Some(view) = self.views.get(&tab) {
+            view.update(cx, |tab, cx| tab.set_solve(solve, cx));
+        }
+        cx.notify();
+    }
+
+    /// Starts the aurora pulse, unless the system asks for reduced motion.
+    fn start_pulse(&mut self, cx: &mut Context<Self>) {
+        if !cx.reduce_motion() {
+            self.pulse = Some(Pulse::new(Instant::now(), motion::PULSE));
+        }
+    }
+
+    /// The latest aurora pulse, if a solve started one.
+    pub fn pulse(&self) -> Option<Pulse> {
+        self.pulse
+    }
+
+    /// What the card needs to know about challenge `id`.
+    fn solve(&self, id: &ChallengeId) -> Solve {
+        let tracks = &self.challenges.tracks;
+        let title = |id: &ChallengeId| tracks.challenge(id).map(|(_, c)| c.title.clone());
+        Solve {
+            title: title(id).unwrap_or_default(),
+            attempt: self.challenges.attempts.of(id).checks,
+            next: tracks
+                .catalog()
+                .neighbours(id)
+                .next
+                .as_ref()
+                .and_then(title),
+        }
+    }
+
+    /// The active challenge's brief, if the active tab is a challenge tab.
+    pub fn active_brief(&self) -> Option<Brief> {
+        let id = self.active_challenge()?;
+        let tracks = &self.challenges.tracks;
+        let (track, challenge) = tracks.challenge(id)?;
+        let position = tracks.catalog().position(id)?;
+        let expected = tracks.expected(id);
+        let tally = self.challenges.attempts.of(id);
+        Some(brief::brief(track, challenge, position, &expected, tally))
+    }
+
+    /// The challenges before and after the active one; none outside a
+    /// challenge tab.
+    pub fn active_neighbours(&self) -> Neighbours {
+        self.active_challenge()
+            .map(|id| self.challenges.tracks.catalog().neighbours(id))
+            .unwrap_or_default()
+    }
+
+    /// Opens the challenge before the active one, if there is one.
+    pub fn open_previous_challenge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = self.active_neighbours().prev {
+            self.open_challenge(&id, window, cx);
+        }
+    }
+
+    /// Opens the challenge after the active one, if there is one.
+    pub fn open_next_challenge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = self.active_neighbours().next {
+            self.open_challenge(&id, window, cx);
+        }
+    }
+
+    pub(super) fn previous_challenge(
+        &mut self,
+        _: &PreviousChallenge,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_previous_challenge(window, cx);
+    }
+
+    pub(super) fn next_challenge(
+        &mut self,
+        _: &NextChallenge,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_next_challenge(window, cx);
+    }
+
+    /// This session's attempts.
+    pub fn attempts(&self) -> &Attempts {
+        &self.challenges.attempts
     }
 
     /// The open tab playing challenge `id`.

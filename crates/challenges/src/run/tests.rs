@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use quarry_engine::{error::EngineError, sqlite::SqliteDriver, value::Value};
 
-use super::{LIMITS, Limits, RunError, run};
+use super::{LIMITS, Limits, RunError, Runner, Stop, run};
 
 const ENDLESS: &str =
     "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n) SELECT max(x) FROM n";
@@ -92,4 +92,30 @@ fn a_finished_run_is_not_cancelled_afterwards() {
     run(&mut driver, "SELECT 1", limits).unwrap();
     std::thread::sleep(Duration::from_millis(60));
     assert!(!quarry_engine::driver::Driver::canceller(&driver).is_cancelled());
+}
+
+#[test]
+fn stopping_cancels_a_run_in_flight() {
+    let stop = Stop::default();
+    let runner = Runner::stoppable(LIMITS, stop.clone());
+    let started = std::time::Instant::now();
+    let running = std::thread::spawn(move || {
+        let mut driver = database().unwrap();
+        runner.run(&mut driver, ENDLESS)
+    });
+    std::thread::sleep(Duration::from_millis(50));
+    assert!(!stop.is_stopped());
+    stop.stop();
+    assert!(stop.is_stopped());
+    assert_eq!(running.join().unwrap(), Err(RunError::TimedOut));
+    assert!(started.elapsed() < LIMITS.time);
+}
+
+#[test]
+fn a_runner_that_nothing_stops_runs_to_the_end() {
+    let mut driver = database().unwrap();
+    let result = Runner::new(LIMITS)
+        .run(&mut driver, "SELECT n FROM t")
+        .unwrap();
+    assert_eq!(result.rows, [[Value::Int(1)], [Value::Int(2)]]);
 }

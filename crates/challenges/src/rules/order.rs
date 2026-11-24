@@ -12,7 +12,7 @@ impl CheckRule for Order {
     }
 
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure> {
-        if !comparison.ordered {
+        if !self.applies(comparison) {
             return None;
         }
         comparison
@@ -22,6 +22,10 @@ impl CheckRule for Order {
             .zip(&comparison.got.rows)
             .position(|(a, b)| !value::same_row(a, b))
             .map(|row| CheckFailure::Order { row })
+    }
+
+    fn applies(&self, comparison: &Comparison<'_>) -> bool {
+        comparison.ordered
     }
 }
 

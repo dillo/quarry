@@ -50,6 +50,25 @@ impl fmt::Display for ChallengeId {
     }
 }
 
+/// The challenges either side of one, across every track in order.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Neighbours {
+    /// The challenge before, if there is one.
+    pub prev: Option<ChallengeId>,
+    /// The challenge after, if there is one.
+    pub next: Option<ChallengeId>,
+}
+
+/// Where a challenge sits in its track: challenge `index` of `of`,
+/// counting from 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Position {
+    /// Its place, counting from 1.
+    pub index: usize,
+    /// How many challenges its track has.
+    pub of: usize,
+}
+
 /// The tracks that loaded, by `order`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Catalog {
@@ -97,6 +116,48 @@ impl Catalog {
             .find(|challenge| challenge.id == id.challenge())?;
         Some((track, challenge))
     }
+
+    /// The challenges before and after `id`: within its track, then on
+    /// into the track before or after. An unknown id has neither.
+    pub fn neighbours(&self, id: &ChallengeId) -> Neighbours {
+        let ids = self.ids();
+        let Some(at) = ids.iter().position(|each| each == id) else {
+            return Neighbours::default();
+        };
+        Neighbours {
+            prev: at
+                .checked_sub(1)
+                .and_then(|before| ids.get(before))
+                .cloned(),
+            next: ids.get(at + 1).cloned(),
+        }
+    }
+
+    /// Where `id` sits in its track.
+    pub fn position(&self, id: &ChallengeId) -> Option<Position> {
+        let track = self.track(id.track())?;
+        let index = track
+            .challenges
+            .iter()
+            .position(|challenge| challenge.id == id.challenge())?;
+        Some(Position {
+            index: index + 1,
+            of: track.challenges.len(),
+        })
+    }
+
+    /// Every challenge's id, track by track.
+    fn ids(&self) -> Vec<ChallengeId> {
+        self.tracks
+            .iter()
+            .flat_map(|track| {
+                track
+                    .challenges
+                    .iter()
+                    .map(|challenge| ChallengeId::new(&track.slug, &challenge.id))
+            })
+            .collect()
+    }
 }
 
 /// `track`, if every challenge's kind is in `kinds`.
@@ -118,7 +179,7 @@ fn known_kinds(track: Track, kinds: &KindRegistry) -> Result<Track, ContentError
 
 #[cfg(test)]
 mod tests {
-    use super::{Catalog, ChallengeId};
+    use super::{Catalog, ChallengeId, Neighbours, Position};
     use crate::{embedded::RawTrack, error::ContentError};
 
     fn raw(slug: &'static str, order: u32, challenge: &'static str) -> RawTrack {
@@ -135,10 +196,12 @@ mod tests {
             format!("title = \"{slug}\"\nemoji = \"E\"\nintro = \"I\"\nconcepts = []\ndifficulty = \"D\"\norder = {order}")
                 .into_boxed_str(),
         );
-        let challenges: &'static str = Box::leak(
-            format!("[[challenge]]\nid = \"{challenge}\"\ntitle = \"T\"\nprompt = \"P\"\nkind = \"{kind}\"\nsolution = \"S\"\nhints = [\"1\", \"2\", \"3\"]")
-                .into_boxed_str(),
-        );
+        let challenges = challenge
+            .split(',')
+            .map(|id| format!("[[challenge]]\nid = \"{id}\"\ntitle = \"T\"\nprompt = \"P\"\nkind = \"{kind}\"\nsolution = \"S\"\nhints = [\"1\", \"2\", \"3\"]"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let challenges: &'static str = Box::leak(challenges.into_boxed_str());
         RawTrack {
             slug,
             track,
@@ -205,6 +268,48 @@ mod tests {
                 problem: "names no kind Quarry knows",
             }]
         );
+    }
+
+    fn id(text: &str) -> Option<ChallengeId> {
+        ChallengeId::parse(text)
+    }
+
+    #[test]
+    fn neighbours_run_through_a_track_then_on_to_the_next() {
+        let (catalog, _) = Catalog::load(&[raw("two", 2, "c"), raw("one", 1, "a,b")]);
+        let around = |text: &str| catalog.neighbours(&id(text).unwrap());
+        assert_eq!(
+            around("one/a"),
+            Neighbours {
+                prev: None,
+                next: id("one/b")
+            }
+        );
+        assert_eq!(
+            around("one/b"),
+            Neighbours {
+                prev: id("one/a"),
+                next: id("two/c")
+            }
+        );
+        assert_eq!(
+            around("two/c"),
+            Neighbours {
+                prev: id("one/b"),
+                next: None
+            }
+        );
+        assert_eq!(around("two/z"), Neighbours::default());
+    }
+
+    #[test]
+    fn a_position_counts_from_one_within_its_track() {
+        let (catalog, _) = Catalog::load(&[raw("one", 1, "a,b,c"), raw("two", 2, "d")]);
+        let at = |text: &str| catalog.position(&id(text).unwrap());
+        assert_eq!(at("one/b"), Some(Position { index: 2, of: 3 }));
+        assert_eq!(at("two/d"), Some(Position { index: 1, of: 1 }));
+        assert_eq!(at("one/z"), None);
+        assert_eq!(at("three/a"), None);
     }
 
     #[test]

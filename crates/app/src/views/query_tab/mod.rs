@@ -18,6 +18,10 @@ use gpui_kit::{
         table::TableState,
     },
 };
+use quarry_challenges::{
+    check::{CheckError, Verdict},
+    run::Stop,
+};
 use quarry_engine::session::{RunEvent, RunHandle};
 
 use super::{
@@ -28,7 +32,7 @@ use crate::model::{
     plan_tree::PlanState,
     statements::{Phase, RunOutput},
     target,
-    verdict::CheckState,
+    verdict::{CheckState, Solve},
 };
 
 /// What a tab tells the workspace.
@@ -40,6 +44,10 @@ pub enum QueryTabEvent {
     Edited,
     /// A copy finished; the note says what it copied.
     Copied(String),
+    /// A check finished with this outcome.
+    Checked(Result<Verdict, CheckError>),
+    /// The card's Next challenge was clicked.
+    NextChallenge,
 }
 
 /// What a run was asked to run.
@@ -64,6 +72,9 @@ pub struct QueryTab {
     planning: Option<Task<()>>,
     check: CheckState,
     checking: Option<Task<()>>,
+    check_stop: Stop,
+    solve: Solve,
+    stayed: bool,
     _edits: Subscription,
 }
 
@@ -94,6 +105,9 @@ impl QueryTab {
             planning: None,
             check: CheckState::Idle,
             checking: None,
+            check_stop: Stop::default(),
+            solve: Solve::default(),
+            stayed: false,
             _edits: edits,
         }
     }

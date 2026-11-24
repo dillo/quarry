@@ -27,7 +27,7 @@ use gpui_kit::{
 };
 use quarry_engine::session::Session;
 use quarry_store::drafts::{Draft, DraftStore, Drafts};
-use quarry_ui_kit::Aurora;
+use quarry_ui_kit::{Aurora, Pulse};
 
 use self::challenges::Challenges;
 pub use self::{
@@ -38,6 +38,7 @@ pub use self::{
 };
 use super::{
     editor,
+    inspector::InspectorRegistry,
     palette::{PaletteSourceRegistry, dialog::Palette},
     query_tab::QueryTab,
     schema::SchemaTree,
@@ -48,7 +49,8 @@ use crate::{
         statements::RunOutput,
         tabs::{Tab, TabId, TabList},
     },
-    shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleSidebar},
+    shell::actions::{CycleTheme, FocusEditor, FocusSidebar, ToggleInspector, ToggleSidebar},
+    tracks::Tracks,
 };
 
 /// How often the workspace polls the session: about 30 times a second.
@@ -56,6 +58,20 @@ pub const POLL: Duration = Duration::from_millis(33);
 
 /// Width of the open sidebar.
 pub const SIDEBAR_WIDTH: f32 = 240.0;
+
+/// Width of the open inspector.
+pub const INSPECTOR_WIDTH: f32 = 280.0;
+
+/// What a workspace runs on: a session for plain tabs, named in the
+/// status bar, and the challenge tracks.
+pub struct Databases {
+    /// The session plain tabs share.
+    pub session: Session,
+    /// What the status bar calls it.
+    pub name: String,
+    /// The challenge tracks.
+    pub tracks: Tracks,
+}
 
 /// The main window's content.
 ///
@@ -75,6 +91,9 @@ pub struct Workspace {
     saves: Arc<Mutex<SaveOrder>>,
     schema: Entity<SchemaTree>,
     sidebar_open: bool,
+    inspector_open: bool,
+    inspector: Rc<InspectorRegistry>,
+    pulse: Option<Pulse>,
     focus: FocusHandle,
     sidebar_focus: FocusHandle,
     schema_read: Option<Task<()>>,
@@ -87,20 +106,18 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    /// A workspace on `session`, labelled `database` in the status bar,
-    /// with the tabs saved in `saved`.
+    /// A workspace on `databases`, with the tabs saved in `saved`.
     pub fn new(
-        session: Session,
-        database: &str,
+        databases: Databases,
         saved: SavedTabs,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let (store, drafts, problem) = saved.open();
-        let challenges = Challenges::embedded();
+        let challenges = Challenges::new(databases.tracks);
         let mut workspace = Self {
-            session,
-            database: database.to_owned(),
+            session: databases.session,
+            database: databases.name,
             tabs: restored_tabs(&drafts, &challenges),
             views: BTreeMap::new(),
             challenges,
@@ -112,6 +129,9 @@ impl Workspace {
             saves: Arc::default(),
             schema: cx.new(|_| SchemaTree::default()),
             sidebar_open: true,
+            inspector_open: !drafts.inspector_hidden,
+            inspector: Rc::new(InspectorRegistry::standard()),
+            pulse: None,
             focus: cx.focus_handle(),
             sidebar_focus: cx.focus_handle().tab_index(0).tab_stop(false),
             schema_read: None,
@@ -178,6 +198,18 @@ impl Workspace {
 
     fn toggle_sidebar(&mut self, _: &ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
         self.sidebar_open = !self.sidebar_open;
+        cx.notify();
+    }
+
+    /// Whether the inspector is shown.
+    pub fn inspector_open(&self) -> bool {
+        self.inspector_open
+    }
+
+    /// Shows or hides the inspector, and saves the choice.
+    fn toggle_inspector(&mut self, _: &ToggleInspector, _: &mut Window, cx: &mut Context<Self>) {
+        self.inspector_open = !self.inspector_open;
+        self.schedule_save(cx);
         cx.notify();
     }
 

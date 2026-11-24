@@ -2,7 +2,10 @@
 //! time limit.
 
 use std::{
-    sync::mpsc::{self, RecvTimeoutError},
+    sync::{
+        Arc, Mutex, PoisonError,
+        mpsc::{self, RecvTimeoutError},
+    },
     thread,
     time::Duration,
 };
@@ -38,6 +41,75 @@ pub enum RunError {
     TimedOut,
     /// A statement returned more rows than the cap.
     TooManyRows,
+}
+
+/// Stops graded runs from outside, such as a check that a newer one
+/// replaced. Clones share one stop.
+#[derive(Debug, Clone, Default)]
+pub struct Stop(Arc<Mutex<Stopping>>);
+
+#[derive(Debug, Default)]
+struct Stopping {
+    stopped: bool,
+    runs: Vec<Canceller>,
+}
+
+impl Stop {
+    /// Cancels every run it watches, and every run it watches later.
+    pub fn stop(&self) {
+        let mut stopping = self.lock();
+        stopping.stopped = true;
+        stopping.runs.iter().for_each(Canceller::cancel);
+    }
+
+    /// Whether [`Stop::stop`] was called.
+    pub fn is_stopped(&self) -> bool {
+        self.lock().stopped
+    }
+
+    /// Cancels `canceller` when the stop is called, or now if it was.
+    fn watch(&self, canceller: Canceller) {
+        let mut stopping = self.lock();
+        if stopping.stopped {
+            canceller.cancel();
+        }
+        stopping.runs.push(canceller);
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Stopping> {
+        // Every update leaves the state whole, so a panic elsewhere while
+        // the lock was held leaves nothing half-done.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Runs scripts for grading within its limits, until its stop is called.
+#[derive(Debug, Clone)]
+pub struct Runner {
+    limits: Limits,
+    stop: Stop,
+}
+
+impl Runner {
+    /// A runner within `limits` that nothing stops.
+    pub fn new(limits: Limits) -> Self {
+        Self::stoppable(limits, Stop::default())
+    }
+
+    /// A runner within `limits` that `stop` can stop.
+    pub fn stoppable(limits: Limits, stop: Stop) -> Self {
+        Self { limits, stop }
+    }
+
+    /// [`run`]s `script` on `driver`. A run cut short by the stop fails as
+    /// [`RunError::TimedOut`]; whoever stopped it has stopped listening.
+    ///
+    /// # Errors
+    /// As for [`run`].
+    pub fn run(&self, driver: &mut dyn Driver, script: &str) -> Result<QueryResult, RunError> {
+        self.stop.watch(driver.canceller());
+        run(driver, script, self.limits)
+    }
 }
 
 /// Runs every statement of `script` on `driver` within `limits`, and

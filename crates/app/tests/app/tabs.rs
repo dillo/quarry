@@ -195,6 +195,7 @@ fn the_closed_tabs_are_kept_through_a_save(cx: &mut TestAppContext) {
         tabs: vec![draft(1, "Query 1", "SELECT 1")],
         active: 0,
         closed: closed.clone(),
+        inspector_hidden: false,
     };
     store.save(&saved).expect("a first save");
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
@@ -214,6 +215,7 @@ fn an_edit_is_saved_only_after_a_pause(cx: &mut TestAppContext) {
             tabs: vec![draft(1, "Query 1", "")],
             active: 0,
             closed: Vec::new(),
+            inspector_hidden: false,
         })
         .expect("a first save");
     let (_workspace, cx) = open(cx, store.clone()).expect("the sample database opens");
@@ -335,6 +337,7 @@ fn a_delayed_older_snapshot_is_skipped() {
         tabs: vec![draft(1, "Query 1", text)],
         active: 0,
         closed: Vec::new(),
+        inspector_hidden: false,
     };
     assert_eq!(
         save_in_order(&store, &saves, newer, &snapshot("newer")),

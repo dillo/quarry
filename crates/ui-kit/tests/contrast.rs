@@ -135,6 +135,16 @@ fn dawn_badges_are_readable_on_every_surface() {
 }
 
 #[test]
+fn the_pulse_glow_stands_out_on_every_surface() {
+    for palette in [Palette::aurora(), Palette::dawn()] {
+        assert_eq!(
+            failures(&palette, &[Role::Pulse], 3.0),
+            Vec::<String>::new()
+        );
+    }
+}
+
+#[test]
 fn the_focus_ring_stands_out_on_every_surface() {
     for palette in [Palette::aurora(), Palette::dawn()] {
         assert_eq!(

@@ -8,7 +8,7 @@ mod query;
 
 use quarry_engine::result::QueryResult;
 
-use crate::{check::CheckError, run::Limits, sandbox::Template, track::Challenge};
+use crate::{check::CheckError, run::Runner, sandbox::Template, track::Challenge};
 
 /// The user's result and the expected one, for the rules to compare.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,8 +24,21 @@ pub trait ChallengeKind: Send + Sync {
     /// Its id, as `kind` in `challenges.toml`, such as "query".
     fn id(&self) -> &'static str;
 
-    /// Runs `sql` and `challenge`'s solution, each on a fresh copy of
-    /// `template`, within `limits`.
+    /// What a right answer to `challenge` gives, run by `runner` on a fresh
+    /// copy of `template`.
+    ///
+    /// # Errors
+    /// Returns [`CheckError::Content`] when the solution gives no result, or
+    /// [`CheckError::Sandbox`] when no copy can be made.
+    fn expected(
+        &self,
+        challenge: &Challenge,
+        template: &Template,
+        runner: &Runner,
+    ) -> Result<QueryResult, CheckError>;
+
+    /// Runs `sql` and `challenge`'s solution with `runner`, each on a
+    /// fresh copy of `template`.
     ///
     /// # Errors
     /// Returns a [`CheckError`] when either cannot give a result.
@@ -34,7 +47,7 @@ pub trait ChallengeKind: Send + Sync {
         challenge: &Challenge,
         sql: &str,
         template: &Template,
-        limits: Limits,
+        runner: &Runner,
     ) -> Result<Answers, CheckError>;
 }
 

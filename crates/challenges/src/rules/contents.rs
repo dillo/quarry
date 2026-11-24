@@ -15,6 +15,10 @@ impl CheckRule for Contents {
         "contents"
     }
 
+    fn applies(&self, _: &Comparison<'_>) -> bool {
+        true
+    }
+
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure> {
         let expected = sorted(&comparison.expected.rows);
         let got = sorted(&comparison.got.rows);

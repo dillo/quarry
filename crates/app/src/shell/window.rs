@@ -9,7 +9,8 @@ use quarry_ui_kit::{Aurora, tokens::chrome};
 
 use crate::{
     sample,
-    views::workspace::{SavedTabs, Workspace},
+    tracks::Tracks,
+    views::workspace::{Databases, SavedTabs, Workspace},
 };
 
 /// The main window's initial size.
@@ -43,12 +44,16 @@ pub fn options(cx: &App) -> WindowOptions {
 /// # Errors
 /// Returns the engine's error when the sample database cannot be opened.
 pub fn open_main(saved: SavedTabs, cx: &mut App) -> Result<(), EngineError> {
-    let session = sample::open()?;
+    let databases = Databases {
+        session: sample::open()?,
+        name: sample::NAME.to_owned(),
+        tracks: Tracks::embedded(),
+    };
     let opened = gpui_kit::open_window(options(cx), cx, |window, cx| {
         window
             .observe_window_appearance(|_, cx| Aurora::system_appearance_changed(cx))
             .detach();
-        let workspace = cx.new(|cx| Workspace::new(session, sample::NAME, saved, window, cx));
+        let workspace = cx.new(|cx| Workspace::new(databases, saved, window, cx));
         let editor = workspace.read(cx).editor(cx);
         editor.update(cx, |state, cx| state.focus(window, cx));
         workspace

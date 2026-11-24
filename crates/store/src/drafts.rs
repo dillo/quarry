@@ -16,8 +16,8 @@ pub struct Draft {
     pub challenge: Option<String>,
 }
 
-/// Every open tab in order, which one is active, and the recently closed
-/// tabs.
+/// Every open tab in order, which one is active, the recently closed
+/// tabs, and whether the inspector was hidden.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Drafts {
     /// The tabs, left to right.
@@ -27,6 +27,8 @@ pub struct Drafts {
     /// Recently closed tabs, newest first. Their ids are not kept: each
     /// loads with id 0.
     pub closed: Vec<Draft>,
+    /// Whether the inspector was hidden; it shows by default.
+    pub inspector_hidden: bool,
 }
 
 /// Loads and saves the drafts.
@@ -75,6 +77,7 @@ mod tests {
             }],
             active: 0,
             closed: Vec::new(),
+            inspector_hidden: false,
         };
         store.save(&drafts)?;
         assert_eq!(store.load()?, Drafts::default());

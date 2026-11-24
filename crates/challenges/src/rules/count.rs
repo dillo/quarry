@@ -10,6 +10,10 @@ impl CheckRule for RowCount {
         "row count"
     }
 
+    fn applies(&self, _: &Comparison<'_>) -> bool {
+        true
+    }
+
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure> {
         let expected = comparison.expected.rows.len();
         let got = comparison.got.rows.len();

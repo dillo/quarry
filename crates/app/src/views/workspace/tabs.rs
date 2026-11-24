@@ -21,11 +21,17 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let view = cx.new(|cx| QueryTab::new(text, window, cx));
-        cx.subscribe(&view, |workspace, _, event, cx| match event {
-            QueryTabEvent::RunEnded => workspace.read_schema(cx),
-            QueryTabEvent::Edited => workspace.schedule_save(cx),
-            QueryTabEvent::Copied(note) => workspace.show_note(note.clone(), cx),
-        })
+        cx.subscribe_in(
+            &view,
+            window,
+            move |workspace, _, event, window, cx| match event {
+                QueryTabEvent::RunEnded => workspace.read_schema(cx),
+                QueryTabEvent::Edited => workspace.schedule_save(cx),
+                QueryTabEvent::Copied(note) => workspace.show_note(note.clone(), cx),
+                QueryTabEvent::Checked(outcome) => workspace.checked(id, outcome, cx),
+                QueryTabEvent::NextChallenge => workspace.open_next_challenge(window, cx),
+            },
+        )
         .detach();
         self.views.insert(id, view);
     }

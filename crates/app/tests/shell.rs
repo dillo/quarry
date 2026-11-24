@@ -42,7 +42,7 @@ fn every_command_but_the_other_copy_formats_has_a_key_binding() {
         .collect();
     let unbound = ["quarry::CopyCsv", "quarry::CopyJson"];
     let commands = actions::commands();
-    assert_eq!(commands.len(), 18);
+    assert_eq!(commands.len(), 21);
     for command in commands {
         let name = (command.action)().name();
         assert!(

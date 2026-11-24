@@ -176,6 +176,7 @@ Reference mockups are in `docs/design/mockups/` (`visual-direction.html`, `light
 - **Right:**
   - An **aurora pulse**: about 600 ms of teal light across the window.
   - The progress segment glows, and the card reads "8 of 12 solved. Next up: …" with Next challenge and Stay here buttons.
+- Phase 2B builds the card, the brief and the pulse with attempts kept for the session only; the progress glow, "N of M solved", Show row diff and Reveal expected result come with 2C's progress and hint policy. The pulse is a teal glow at the window's edges rather than a wash across it, because a wash lowers text contrast below the gate (ADR 0013).
 
 ## 5. Challenges
 

@@ -1,5 +1,6 @@
 //! The grading pipeline (parent spec §5.4): columns, row count, contents,
-//! then order. It stops at the first rule that fails.
+//! then order. It stops at the first rule that fails, and reports where
+//! every rule stands.
 //!
 //! Each rule is a [`CheckRule`]; adding one is a new module and one line in
 //! [`pipeline`].
@@ -70,6 +71,60 @@ pub trait CheckRule {
     /// What this rule finds wrong, if anything. It may assume every earlier
     /// rule passed.
     fn check(&self, comparison: &Comparison<'_>) -> Option<CheckFailure>;
+
+    /// Whether this rule has anything to check in `comparison`; a rule that
+    /// doesn't apply is reported as not applicable.
+    fn applies(&self, comparison: &Comparison<'_>) -> bool;
+}
+
+/// Where one rule stands after grading.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleStatus {
+    /// The rule found nothing wrong.
+    Passed,
+    /// The rule found this wrong.
+    Failed(CheckFailure),
+    /// An earlier rule failed, so this one wasn't run.
+    NotChecked,
+    /// The rule doesn't apply to this challenge.
+    NotApplicable,
+}
+
+/// One rule's outcome.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleOutcome {
+    /// The rule's [`CheckRule::id`].
+    pub rule: &'static str,
+    /// Where it stands.
+    pub status: RuleStatus,
+}
+
+/// Every rule's outcome, in pipeline order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Grading {
+    outcomes: Vec<RuleOutcome>,
+}
+
+impl Grading {
+    /// A grading made of `outcomes`, in pipeline order.
+    pub fn new(outcomes: Vec<RuleOutcome>) -> Self {
+        Self { outcomes }
+    }
+
+    /// Every rule's outcome, in pipeline order.
+    pub fn outcomes(&self) -> &[RuleOutcome] {
+        &self.outcomes
+    }
+
+    /// The failure of the rule that failed, if one did.
+    pub fn failure(&self) -> Option<&CheckFailure> {
+        self.outcomes
+            .iter()
+            .find_map(|outcome| match &outcome.status {
+                RuleStatus::Failed(failure) => Some(failure),
+                _ => None,
+            })
+    }
 }
 
 /// The rules in the order they run.
@@ -82,9 +137,29 @@ pub fn pipeline() -> Vec<Box<dyn CheckRule>> {
     ]
 }
 
-/// The first rule's failure, or `None` when every rule passes.
-pub fn first_failure(comparison: &Comparison<'_>) -> Option<CheckFailure> {
-    pipeline().iter().find_map(|rule| rule.check(comparison))
+/// Runs the pipeline on `comparison`. A rule that doesn't apply is not
+/// applicable; every other rule after the first failure is not checked.
+pub fn grade(comparison: &Comparison<'_>) -> Grading {
+    let mut failed = false;
+    let outcomes = pipeline()
+        .iter()
+        .map(|rule| {
+            let status = if !rule.applies(comparison) {
+                RuleStatus::NotApplicable
+            } else if failed {
+                RuleStatus::NotChecked
+            } else {
+                rule.check(comparison)
+                    .map_or(RuleStatus::Passed, RuleStatus::Failed)
+            };
+            failed |= matches!(status, RuleStatus::Failed(_));
+            RuleOutcome {
+                rule: rule.id(),
+                status,
+            }
+        })
+        .collect();
+    Grading::new(outcomes)
 }
 
 #[cfg(test)]
@@ -117,9 +192,25 @@ pub(crate) mod testing {
 #[cfg(test)]
 mod tests {
     use super::{
-        CheckFailure, Comparison, first_failure, pipeline,
+        CheckFailure, Comparison, RuleStatus, grade, pipeline,
         testing::{ints, result},
     };
+
+    fn statuses(expected: &[i64], got: &[i64], names: &[&str], ordered: bool) -> Vec<RuleStatus> {
+        let expected = result(&["n"], ints(expected));
+        let got = result(names, ints(got));
+        let comparison = Comparison {
+            expected: &expected,
+            got: &got,
+            ordered,
+        };
+        let grading = grade(&comparison);
+        grading
+            .outcomes()
+            .iter()
+            .map(|outcome| outcome.status.clone())
+            .collect()
+    }
 
     #[test]
     fn the_rules_run_columns_count_contents_then_order() {
@@ -128,32 +219,78 @@ mod tests {
     }
 
     #[test]
-    fn the_first_failing_rule_is_reported() {
-        let expected = result(&["n"], ints(&[1, 2]));
-        let wrong_columns = result(&["m", "n"], ints(&[3]));
-        let comparison = Comparison {
-            expected: &expected,
-            got: &wrong_columns,
-            ordered: true,
+    fn every_rule_after_the_first_failure_is_not_checked() {
+        let failure = CheckFailure::RowCount {
+            expected: 2,
+            got: 1,
         };
         assert_eq!(
-            first_failure(&comparison),
-            Some(CheckFailure::ColumnCount {
-                expected: 1,
-                got: 2
-            })
+            statuses(&[1, 2], &[1], &["n"], true),
+            [
+                RuleStatus::Passed,
+                RuleStatus::Failed(failure),
+                RuleStatus::NotChecked,
+                RuleStatus::NotChecked,
+            ]
         );
     }
 
     #[test]
-    fn a_matching_answer_passes_every_rule() {
+    fn a_failure_at_the_last_rule_follows_three_passes() {
+        let statuses = statuses(&[1, 2], &[2, 1], &["n"], true);
+        assert_eq!(statuses[..3], [const { RuleStatus::Passed }; 3]);
+        assert_eq!(
+            statuses[3],
+            RuleStatus::Failed(CheckFailure::Order { row: 0 })
+        );
+    }
+
+    #[test]
+    fn a_matching_answer_passes_every_rule_that_applies() {
+        assert_eq!(
+            statuses(&[1, 2], &[1, 2], &["N"], true),
+            [const { RuleStatus::Passed }; 4]
+        );
+        let unordered = statuses(&[1, 2], &[2, 1], &["n"], false);
+        assert_eq!(unordered[..3], [const { RuleStatus::Passed }; 3]);
+        assert_eq!(unordered[3], RuleStatus::NotApplicable);
+    }
+
+    #[test]
+    fn an_unordered_challenge_never_applies_order() {
+        let early = statuses(&[1, 2], &[1], &["n"], false);
+        assert_eq!(early[2], RuleStatus::NotChecked);
+        assert_eq!(early[3], RuleStatus::NotApplicable);
+    }
+
+    #[test]
+    fn an_ordered_challenge_does_not_check_order_after_a_failure() {
+        let early = statuses(&[1, 2], &[1], &["n"], true);
+        assert_eq!(early[3], RuleStatus::NotChecked);
+    }
+
+    #[test]
+    fn the_failure_is_the_rule_that_failed() {
         let expected = result(&["n"], ints(&[1, 2]));
-        let got = result(&["N"], ints(&[1, 2]));
-        let comparison = Comparison {
+        let wrong_columns = result(&["m", "n"], ints(&[3]));
+        let failed = grade(&Comparison {
             expected: &expected,
-            got: &got,
+            got: &wrong_columns,
             ordered: true,
-        };
-        assert_eq!(first_failure(&comparison), None);
+        });
+        assert_eq!(
+            failed.failure(),
+            Some(&CheckFailure::ColumnCount {
+                expected: 1,
+                got: 2
+            })
+        );
+        assert_eq!(failed.outcomes()[0].rule, "columns");
+        let solved = grade(&Comparison {
+            expected: &expected,
+            got: &expected,
+            ordered: true,
+        });
+        assert_eq!(solved.failure(), None);
     }
 }
